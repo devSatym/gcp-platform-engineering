@@ -1,0 +1,162 @@
+# =============================================================================
+# gitops/applications/opentelemetry-demo/values/prod.yaml
+#
+# Production environment overrides — layered on top of base.yaml.
+# Goal: Maximum resilience, zone-spread HA, cost-controlled load testing.
+#
+# Key characteristics:
+#   - 3 replicas for Tier 1 (one per zone — zone HA)
+#   - Pod anti-affinity to spread replicas across zones
+#   - Topology spread constraints (zone balancing)
+#   - PodDisruptionBudgets (minAvailable: 2 for 3-replica services)
+#   - Load generator DISABLED — enable only for controlled production tests
+#   - Full persistence for Prometheus and Grafana
+#   - Warning/Error log level only
+# =============================================================================
+
+components:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TIER 1 — 3 replicas with zone spread and PDBs
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  frontend:
+    replicas: 3
+    podDisruptionBudget:
+      minAvailable: 2    # Allow only 1 pod down during rolling update
+    schedulingRules:
+      nodeSelector:
+        workload: general
+      affinity:
+        podAntiAffinity:
+          # Prefer (not require) spreading across zones — if zone capacity allows
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: topology.kubernetes.io/zone
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/component: frontend
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway  # Soft constraint — don't block scheduling
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/component: frontend
+
+  frontendProxy:
+    replicas: 3
+    podDisruptionBudget:
+      minAvailable: 2
+    schedulingRules:
+      nodeSelector:
+        workload: general
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+
+  cartService:
+    replicas: 3
+    podDisruptionBudget:
+      minAvailable: 2
+
+  checkoutService:
+    replicas: 3
+    podDisruptionBudget:
+      minAvailable: 2
+
+  paymentService:
+    replicas: 3
+    podDisruptionBudget:
+      minAvailable: 2
+    # Payment service: even stricter — require zone spread
+    schedulingRules:
+      nodeSelector:
+        workload: general
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule  # Hard constraint for payment
+
+  productCatalogService:
+    replicas: 3
+    podDisruptionBudget:
+      minAvailable: 2
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TIER 2 — 2 replicas for basic HA (tolerate 1 failure)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  emailService:
+    replicas: 2
+  recommendationService:
+    replicas: 2
+  currencyService:
+    replicas: 2
+  shippingService:
+    replicas: 2
+  adService:
+    replicas: 2
+  accountingService:
+    replicas: 2
+  frauddetectionService:
+    replicas: 2
+  quoteService:
+    replicas: 2
+
+  # Tier 3 — platform
+  flagd:
+    replicas: 2  # Feature flag service should be HA in prod
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TIER 4 — Load generator DISABLED in prod
+  # Enable explicitly for controlled load tests only
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  loadgenerator:
+    enabled: false   # Re-enable with specific config for load tests
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # DATA STORES — HA configuration
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  valkey:
+    replicas: 1  # Upstream demo uses single Valkey — Phase 8 considers Redis Sentinel
+    podDisruptionBudget:
+      minAvailable: 1
+
+  kafka:
+    replicas: 1  # Single-node for cost control — Phase 8 considers multi-broker
+
+# ─── Observability sub-charts — full persistence in prod ─────────────────────
+
+grafana:
+  enabled: true
+  persistence:
+    enabled: true
+    size: 20Gi
+    storageClassName: standard-rwo
+
+jaeger:
+  enabled: true
+  allInOne:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+prometheus:
+  enabled: true
+  server:
+    persistentVolume:
+      enabled: true
+      size: 50Gi   # Retain 30 days of metrics in prod
+      storageClassName: standard-rwo
+    retention: "30d"
+
+opensearch:
+  enabled: false  # Enable in Phase 8 when log pipeline is fully configured

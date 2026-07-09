@@ -1,0 +1,378 @@
+# =============================================================================
+# gitops/applications/opentelemetry-demo/values/base.yaml
+#
+# Common Helm value overrides applied to ALL environments.
+# These overrides layer on top of the upstream chart defaults.
+#
+# Override philosophy:
+#   - Never modify upstream chart source
+#   - Customize only through values overlays
+#   - Keep base.yaml environment-agnostic (no env-specific replicas)
+#   - Per-env files (dev/stage/prod) override base.yaml
+#
+# Upstream chart: https://open-telemetry.github.io/opentelemetry-helm-charts
+# Chart version: 0.32.8 (pinned in ArgoCD ApplicationSet)
+#
+# Service Tier Classification:
+#   Tier 1 (Critical):  Frontend, FrontendProxy, Cart, Checkout, Payment, ProductCatalog
+#   Tier 2 (Standard):  Email, Recommendation, Currency, Shipping, Ad, Accounting, FraudDetection, Quote
+#   Tier 3 (Platform):  OTel Collector, Prometheus, Grafana, Jaeger, Flagd
+#   Tier 4 (Non-crit):  Load Generator → Spot nodes only
+# =============================================================================
+
+# ─── Default environment variables injected into every component ──────────────
+default:
+  env:
+    - name: OTEL_SERVICE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.labels['app.kubernetes.io/component']
+    - name: OTEL_RESOURCE_ATTRIBUTES
+      value: "deployment.environment=$(DEPLOYMENT_ENV),k8s.cluster.name=$(CLUSTER_NAME)"
+
+# ─── Components ───────────────────────────────────────────────────────────────
+components:
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TIER 1 — Critical Business Services
+  # PriorityClass: business-critical (900)
+  # Node pool: general
+  # PDB: set per environment in dev/stage/prod.yaml
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  frontend:
+    priorityClassName: business-critical
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  frontendProxy:
+    priorityClassName: business-critical
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  cartService:
+    priorityClassName: business-critical
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 300m
+        memory: 256Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  checkoutService:
+    priorityClassName: business-critical
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 300m
+        memory: 384Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  paymentService:
+    priorityClassName: business-critical
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 300m
+        memory: 256Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  productCatalogService:
+    priorityClassName: business-critical
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TIER 2 — Supporting Services
+  # PriorityClass: business-standard (500) — globalDefault, no explicit set needed
+  # Node pool: general
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  emailService:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  recommendationService:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 512Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  currencyService:
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  shippingService:
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  adService:
+    # JVM-based (Java) — needs higher memory for JVM heap
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  accountingService:
+    # .NET-based
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  frauddetectionService:
+    # Kotlin-based — JVM overhead
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 384Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  quoteService:
+    # PHP-based — lightweight
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TIER 3 — Platform Services (Observability + Feature Flags)
+  # PriorityClass: platform-critical (1000)
+  # Note: Prometheus/Grafana/Jaeger are sub-charts managed separately below
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  flagd:
+    priorityClassName: platform-critical
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general   # Flagd serves feature flags to all services — keep on reliable pool
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TIER 4 — Non-critical (Spot nodes)
+  # PriorityClass: non-critical (100)
+  # Node pool: spot — interruptible, ~60-91% cheaper
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  loadgenerator:
+    priorityClassName: non-critical
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    schedulingRules:
+      nodeSelector:
+        workload: spot
+      tolerations:
+        - key: "workload"
+          operator: "Equal"
+          value: "spot"
+          effect: "NoSchedule"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # DATA STORES — Critical (Valkey, PostgreSQL, Kafka)
+  # PriorityClass: business-critical (900) — data loss if evicted
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  valkey:
+    # Redis-compatible cache — used by Cart service
+    priorityClassName: business-critical
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  kafka:
+    # Message queue — used by Accounting and Fraud Detection
+    priorityClassName: business-critical
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+# ─── Observability Sub-charts ──────────────────────────────────────────────────
+# Bundled with the OTel Demo chart for Phase 5.
+# Phase 8 will externalize these into dedicated ArgoCD Applications.
+
+opentelemetry-collector:
+  priorityClassName: platform-critical
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  config:
+    exporters:
+      prometheus:
+        endpoint: "0.0.0.0:9090"
+      jaeger:
+        endpoint: jaeger-collector:14250
+        tls:
+          insecure: true
+      # Future: Cloud Monitoring exporter (Phase 8)
+      # googlecloud:
+      #   project: PROJECT_ID
+    service:
+      pipelines:
+        traces:
+          exporters: [jaeger, otlp]
+        metrics:
+          exporters: [prometheus]
+        logs:
+          exporters: [debug]
+
+prometheus:
+  server:
+    priorityClassName: platform-critical
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+    persistentVolume:
+      enabled: true
+      size: 10Gi
+      storageClass: standard-rwo   # GKE standard persistent disk
+
+grafana:
+  priorityClassName: platform-critical
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 512Mi
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClassName: standard-rwo
+
+jaeger:
+  allInOne:
+    priorityClassName: platform-critical
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 512Mi
+
+# Disable heavy/unneeded sub-charts for dev initially
+opensearch:
+  enabled: false  # ~1GB RAM — enable in stage/prod when needed

@@ -1,0 +1,209 @@
+# =============================================================================
+# .github/workflows/terraform.yaml
+#
+# Terraform — Infrastructure PR Validation
+#
+# Runs on PRs that touch terraform/** files.
+#
+# IMPORTANT: terraform apply is NEVER automated.
+# Plan output is posted as a PR comment for human review.
+# Apply must be run manually or requires explicit GitHub Environment approval.
+#
+# Jobs:
+#   1. validate — fmt, validate, tflint, checkov
+#   2. plan     — terraform plan (posted as PR comment)
+# =============================================================================
+
+name: Terraform — Infrastructure
+
+on:
+  pull_request:
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/terraform.yaml'
+  # Allow manual plan runs
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to plan'
+        required: true
+        default: 'dev'
+        type: choice
+        options: [dev, stage, prod]
+
+concurrency:
+  group: terraform-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─── Job 1: Validate ─────────────────────────────────────────────────────────
+  validate:
+    name: Validate — fmt, tflint, checkov
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.9.0'
+
+      # Format check — enforces consistent style
+      - name: Terraform fmt
+        run: |
+          terraform fmt -check -recursive terraform/
+          echo "✅ Terraform format OK"
+
+      # Validate each environment's configuration
+      - name: Terraform validate (dev)
+        run: |
+          cd terraform/environments/dev
+          terraform init -backend=false -input=false
+          terraform validate
+          echo "✅ dev validates"
+
+      - name: Terraform validate (stage)
+        run: |
+          cd terraform/environments/stage
+          terraform init -backend=false -input=false
+          terraform validate
+          echo "✅ stage validates"
+
+      - name: Terraform validate (prod)
+        run: |
+          cd terraform/environments/prod
+          terraform init -backend=false -input=false
+          terraform validate
+          echo "✅ prod validates"
+
+      # Validate all modules independently
+      - name: Terraform validate (modules)
+        run: |
+          for module in terraform/modules/*/; do
+            echo "--- Validating ${module} ---"
+            cd ${module}
+            terraform init -backend=false -input=false
+            terraform validate
+            cd -
+          done
+
+      # TFLint — Terraform-specific linting (catches provider-specific issues)
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: 'v0.50.3'
+
+      - name: TFLint
+        run: |
+          for module in terraform/modules/*/; do
+            echo "--- TFLint: ${module} ---"
+            cd ${module}
+            tflint --init
+            tflint
+            cd -
+          done
+
+      # Checkov — IaC security scanning
+      - name: Checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: terraform/
+          framework: terraform
+          output_format: sarif
+          output_file_path: checkov-results.sarif
+          soft_fail: true  # Warn, don't block — allows gradual hardening
+
+      - name: Upload Checkov SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: checkov-results.sarif
+          category: checkov-terraform
+
+  # ─── Job 2: Plan ─────────────────────────────────────────────────────────────
+  plan:
+    name: Terraform Plan — dev
+    runs-on: ubuntu-latest
+    needs: validate
+    timeout-minutes: 30
+
+    # Use GitHub Environment for access to protected secrets
+    environment: dev
+
+    permissions:
+      contents: read
+      id-token: write       # WIF
+      pull-requests: write  # Post plan comment
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.9.0'
+
+      # ─── GCP Authentication ─────────────────────────────────────────────
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SA_EMAIL }}
+
+      # ─── Terraform Plan ──────────────────────────────────────────────────
+      - name: Terraform init
+        working-directory: terraform/environments/dev
+        run: terraform init -input=false
+
+      - name: Terraform plan
+        id: plan
+        working-directory: terraform/environments/dev
+        run: |
+          terraform plan \
+            -input=false \
+            -no-color \
+            -out=plan.tfplan \
+            2>&1 | tee plan-output.txt || true
+
+          # Capture exit code separately
+          terraform plan -input=false -no-color -detailed-exitcode 2>/dev/null
+          PLAN_EXIT=$?
+          echo "plan_exit_code=${PLAN_EXIT}" >> $GITHUB_OUTPUT
+          # 0=no changes, 1=error, 2=changes present
+
+      # Post plan as PR comment for human review
+      - name: Post plan to PR
+        uses: peter-evans/create-or-update-comment@v4
+        if: github.event_name == 'pull_request'
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            ## 🏗️ Terraform Plan — `dev`
+
+            <details>
+            <summary>Click to expand plan</summary>
+
+            ```hcl
+            ${{ steps.plan.outputs.stdout || 'Plan output captured in file' }}
+            ```
+
+            </details>
+
+            > ⚠️ **`terraform apply` must be run manually.** This plan is for review only.
+            > Run: `cd terraform/environments/dev && terraform apply plan.tfplan`
+
+      - name: Plan summary
+        run: |
+          echo "## 🏗️ Terraform Plan Result" >> $GITHUB_STEP_SUMMARY
+          EXITCODE="${{ steps.plan.outputs.plan_exit_code }}"
+          if [[ "${EXITCODE}" == "0" ]]; then
+            echo "✅ No changes — infrastructure is up to date" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${EXITCODE}" == "2" ]]; then
+            echo "📝 Changes detected — review the plan comment on the PR" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Plan failed — check the workflow logs" >> $GITHUB_STEP_SUMMARY
+          fi

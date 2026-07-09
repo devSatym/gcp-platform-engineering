@@ -1,0 +1,71 @@
+# =============================================================================
+# gitops/platform/priority-classes.yaml
+#
+# PriorityClasses define the eviction order when the cluster runs out of
+# resources. Higher value = evicted last.
+#
+# When a node is under memory/CPU pressure, the scheduler evicts pods
+# in ascending priority order until resources are freed.
+#
+# Sync Wave 0: PriorityClasses are cluster-scoped resources that must exist
+# before any Deployment references them.
+#
+# Priority hierarchy for this platform:
+#
+#   platform-critical (1000) — Never evict: OTel Collector, Prometheus, DNS
+#   business-critical  (900) — Evict last: Frontend, Checkout, Cart, Payment
+#   business-standard  (500) — Evict if needed: Email, Recommendation, etc.
+#   non-critical       (100) — Evict first: Load Generator, test jobs
+# =============================================================================
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: platform-critical
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    description: "Platform-critical components (OTel Collector, Prometheus, DNS, Ingress). Never sacrifice these for application workloads."
+value: 1000
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: "Platform-critical: OTel Collector, Prometheus, CoreDNS, kube-dns, ArgoCD, metrics-server"
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: business-critical
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    description: "Tier 1 business services with direct revenue impact. Evict only as a last resort."
+value: 900
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: "Business-critical: Frontend, Checkout, Cart, Payment, Product Catalog, data stores (Valkey, PostgreSQL, Kafka)"
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: business-standard
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    description: "Tier 2 supporting services that can tolerate brief disruption."
+value: 500
+globalDefault: true  # Default for pods without an explicit priorityClassName
+preemptionPolicy: PreemptLowerPriority
+description: "Business-standard (default): Email, Recommendation, Currency, Shipping, Ad, Accounting, Fraud Detection, Quote"
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: non-critical
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    description: "Non-critical workloads that run opportunistically and can be safely evicted."
+value: 100
+globalDefault: false
+preemptionPolicy: Never  # Non-critical pods do not preempt others to schedule
+description: "Non-critical: Load Generator, chaos jobs, batch tasks, experimental workloads"

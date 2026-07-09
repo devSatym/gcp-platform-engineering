@@ -1,0 +1,66 @@
+# =============================================================================
+# gitops/bootstrap/platform-appset.yaml
+#
+# ApplicationSet that generates platform component Applications for dev, stage,
+# and prod environments from a single template.
+#
+# Benefits over individual Application YAMLs per environment:
+#   - Zero duplication: one template generates N environments
+#   - Adding a new environment = adding one list entry
+#   - Multi-cluster ready: change the `cluster` field to add new clusters
+#
+# Sync Wave -1: AppSets create Applications, which must exist before they sync.
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: platform-components
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  # ─── Generator: List ────────────────────────────────────────────────────────
+  # Generates one Application per environment entry.
+  # When multi-cluster is added (Phase 16+), update the `server` field here.
+  generators:
+    - list:
+        elements:
+          - env: dev
+            server: https://kubernetes.default.svc
+          - env: stage
+            server: https://kubernetes.default.svc
+          - env: prod
+            server: https://kubernetes.default.svc
+
+  # ─── Template: Application per environment ──────────────────────────────────
+  template:
+    metadata:
+      name: "platform-{{env}}"
+      namespace: argocd
+      labels:
+        app.kubernetes.io/part-of: platform
+        environment: "{{env}}"
+    spec:
+      project: platform
+      source:
+        repoURL: "https://github.com/YOUR_USERNAME/project-2.git"  # UPDATE THIS
+        targetRevision: main
+        path: gitops/platform
+      destination:
+        server: "{{server}}"
+        namespace: platform-system
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+          - RespectIgnoreDifferences=true
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m

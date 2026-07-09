@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+  annotations:
+    # Wave -3: root app must be the first thing ArgoCD processes
+    argocd.argoproj.io/sync-wave: "-3"
+  # Finalizer ensures child applications are deleted when root is deleted
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: "${git_repo_url}"
+    targetRevision: main
+    # Points to the bootstrap directory — ArgoCD discovers all child apps here
+    path: gitops/bootstrap
+    directory:
+      recurse: false  # Don't recurse into subdirectories — explicit child app discovery
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true     # Remove resources deleted from Git
+      selfHeal: true  # Revert manual changes to cluster state
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

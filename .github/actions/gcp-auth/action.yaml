@@ -1,0 +1,64 @@
+# =============================================================================
+# .github/actions/gcp-auth/action.yaml
+#
+# Composite action: GCP Authentication via Workload Identity Federation.
+# Wraps google-github-actions/auth to standardize WIF usage across workflows.
+#
+# Usage:
+#   - uses: ./.github/actions/gcp-auth
+#     with:
+#       project_id: ${{ vars.GCP_PROJECT_ID }}
+#       wif_provider: ${{ vars.GCP_WIF_PROVIDER }}
+#       sa_email: ${{ vars.GCP_SA_EMAIL }}
+# =============================================================================
+
+name: 'GCP Auth (WIF)'
+description: 'Authenticate to GCP using Workload Identity Federation — no JSON keys'
+
+inputs:
+  project_id:
+    description: 'GCP Project ID'
+    required: true
+  wif_provider:
+    description: 'Full WIF provider resource name. From: terraform output wif_provider'
+    required: true
+  sa_email:
+    description: 'GCP Service Account email to impersonate'
+    required: true
+  configure_docker:
+    description: 'Whether to configure Docker for Artifact Registry after auth'
+    required: false
+    default: 'true'
+  registry:
+    description: 'Artifact Registry region (e.g., asia-south1-docker.pkg.dev)'
+    required: false
+    default: 'asia-south1-docker.pkg.dev'
+
+outputs:
+  credentials_file:
+    description: 'Path to the credentials file'
+    value: ${{ steps.auth.outputs.credentials_file }}
+  access_token:
+    description: 'GCP access token'
+    value: ${{ steps.auth.outputs.access_token }}
+
+runs:
+  using: composite
+  steps:
+    - name: Authenticate to GCP (WIF)
+      id: auth
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: ${{ inputs.wif_provider }}
+        service_account: ${{ inputs.sa_email }}
+
+    - name: Configure Docker for Artifact Registry
+      if: inputs.configure_docker == 'true'
+      shell: bash
+      run: gcloud auth configure-docker ${{ inputs.registry }} --quiet
+
+    - name: Verify authentication
+      shell: bash
+      run: |
+        echo "✅ Authenticated as: $(gcloud config get account)"
+        echo "   Project: $(gcloud config get project)"

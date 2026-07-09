@@ -1,0 +1,230 @@
+# =============================================================================
+# gitops/bootstrap/projects.yaml
+#
+# ArgoCD Projects isolate applications by defining:
+#   - Which Git source paths they can deploy from
+#   - Which cluster namespaces they can deploy to
+#   - Which cluster-scoped resources (CRDs) they can manage
+#
+# Sync Wave -1: projects must exist before Applications reference them.
+#
+# Benefits of project isolation:
+#   - An observability app cannot accidentally deploy into security namespace
+#   - RBAC is applied per-project
+#   - Prevents blast-radius from misconfigurations
+# =============================================================================
+
+---
+# ─── Platform Project ──────────────────────────────────────────────────────────
+# Manages: ESO, metrics-server, cert-manager, and future platform operators
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: "Platform system components (ESO, metrics-server, cert-manager)"
+
+  sourceRepos:
+    - "https://github.com/YOUR_USERNAME/project-2.git"  # UPDATE THIS
+    - "https://charts.external-secrets.io"
+    - "https://kubernetes-sigs.github.io/metrics-server"
+    - "https://charts.jetstack.io"
+
+  destinations:
+    - namespace: platform-system
+      server: https://kubernetes.default.svc
+    - namespace: argocd
+      server: https://kubernetes.default.svc
+    - namespace: kube-system
+      server: https://kubernetes.default.svc
+
+  clusterResourceWhitelist:
+    - group: "apiextensions.k8s.io"
+      kind: CustomResourceDefinition
+    - group: "rbac.authorization.k8s.io"
+      kind: ClusterRole
+    - group: "rbac.authorization.k8s.io"
+      kind: ClusterRoleBinding
+    - group: ""
+      kind: Namespace
+
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
+
+---
+# ─── Applications Project ─────────────────────────────────────────────────────
+# Manages: OTel Demo (Phase 5), future business applications
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: applications
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: "Business applications (OTel Demo, future workloads)"
+
+  sourceRepos:
+    - "https://github.com/YOUR_USERNAME/project-2.git"  # UPDATE THIS
+    - "https://open-telemetry.github.io/opentelemetry-helm-charts"
+
+  destinations:
+    - namespace: applications
+      server: https://kubernetes.default.svc
+    - namespace: otel-demo
+      server: https://kubernetes.default.svc
+    # Per-environment namespaces (Phase 5 ApplicationSet)
+    - namespace: otel-demo-dev
+      server: https://kubernetes.default.svc
+    - namespace: otel-demo-stage
+      server: https://kubernetes.default.svc
+    - namespace: otel-demo-prod
+      server: https://kubernetes.default.svc
+
+  clusterResourceWhitelist:
+    - group: "rbac.authorization.k8s.io"
+      kind: ClusterRole
+    - group: "rbac.authorization.k8s.io"
+      kind: ClusterRoleBinding
+    - group: ""
+      kind: Namespace
+    - group: "scheduling.k8s.io"
+      kind: PriorityClass
+
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
+
+---
+# ─── Observability Project ────────────────────────────────────────────────────
+# Manages: Prometheus, Grafana, Loki, OTel Collector (Phase 8)
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: observability
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: "Observability stack (Prometheus, Grafana, Loki, OTel Collector)"
+
+  sourceRepos:
+    - "https://github.com/YOUR_USERNAME/project-2.git"  # UPDATE THIS
+    - "https://prometheus-community.github.io/helm-charts"
+    - "https://grafana.github.io/helm-charts"
+    - "https://open-telemetry.github.io/opentelemetry-helm-charts"
+
+  destinations:
+    - namespace: observability
+      server: https://kubernetes.default.svc
+
+  clusterResourceWhitelist:
+    - group: "apiextensions.k8s.io"
+      kind: CustomResourceDefinition
+    - group: "rbac.authorization.k8s.io"
+      kind: ClusterRole
+    - group: "rbac.authorization.k8s.io"
+      kind: ClusterRoleBinding
+    - group: ""
+      kind: Namespace
+
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
+
+---
+# ─── Networking Project ───────────────────────────────────────────────────────
+# Manages: Istio, Gateway API config (Phase 9)
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: networking
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: "Networking (Istio, Gateway API, ingress config)"
+
+  sourceRepos:
+    - "https://github.com/YOUR_USERNAME/project-2.git"  # UPDATE THIS
+    - "https://istio-release.storage.googleapis.com/charts"
+
+  destinations:
+    - namespace: networking
+      server: https://kubernetes.default.svc
+    - namespace: istio-system
+      server: https://kubernetes.default.svc
+    - namespace: istio-ingress
+      server: https://kubernetes.default.svc
+
+  clusterResourceWhitelist:
+    - group: "apiextensions.k8s.io"
+      kind: CustomResourceDefinition
+    - group: "rbac.authorization.k8s.io"
+      kind: ClusterRole
+    - group: "rbac.authorization.k8s.io"
+      kind: ClusterRoleBinding
+    - group: ""
+      kind: Namespace
+
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
+
+---
+# ─── Security Project ─────────────────────────────────────────────────────────
+# Manages: Kyverno, Falco, policy config (Phase 7)
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: security
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: "Security components (Kyverno, Falco, policy enforcement)"
+
+  sourceRepos:
+    - "https://github.com/YOUR_USERNAME/project-2.git"  # UPDATE THIS
+    - "https://kyverno.github.io/kyverno"
+    - "https://falcosecurity.github.io/charts"
+
+  destinations:
+    - namespace: security
+      server: https://kubernetes.default.svc
+    - namespace: kyverno
+      server: https://kubernetes.default.svc
+    - namespace: falco
+      server: https://kubernetes.default.svc
+
+  clusterResourceWhitelist:
+    - group: "apiextensions.k8s.io"
+      kind: CustomResourceDefinition
+    - group: "rbac.authorization.k8s.io"
+      kind: ClusterRole
+    - group: "rbac.authorization.k8s.io"
+      kind: ClusterRoleBinding
+    - group: "admissionregistration.k8s.io"
+      kind: ValidatingWebhookConfiguration
+    - group: "admissionregistration.k8s.io"
+      kind: MutatingWebhookConfiguration
+    - group: ""
+      kind: Namespace
+
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

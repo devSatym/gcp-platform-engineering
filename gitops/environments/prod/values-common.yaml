@@ -1,0 +1,42 @@
+# =============================================================================
+# gitops/environments/prod/values-common.yaml
+#
+# Production environment overrides — highest availability, production resources.
+# =============================================================================
+
+environment: prod
+
+# Prod: minimum 3 replicas for full HA (one per zone)
+replicas: 3
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+features:
+  enableDebugLogging: false  # Warning/Error only in prod
+  enableTracing: true
+  enableMetrics: true
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+
+# PodDisruptionBudget — ensure at least 2 replicas available during rolling updates
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+ingress:
+  enabled: false  # Enabled in Phase 9 with TLS + Cloud Armor
+
+# Production-specific: topology spread for zone resilience
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: DoNotSchedule

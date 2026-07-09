@@ -1,0 +1,81 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":separateMultipleMajorReleases"
+  ],
+
+  "labels": ["dependencies", "renovate"],
+  "assignees": ["YOUR_GITHUB_USERNAME"],
+
+  "packageRules": [
+    {
+      "description": "Helm charts in ArgoCD Application/ApplicationSet YAMLs",
+      "matchManagers": ["helmv3", "regex"],
+      "matchFileNames": ["gitops/**/*.yaml", "gitops/**/*.yml"],
+      "groupName": "Helm charts",
+      "automerge": false,
+      "reviewers": ["YOUR_GITHUB_USERNAME"]
+    },
+    {
+      "description": "Terraform providers — manual review required",
+      "matchManagers": ["terraform"],
+      "groupName": "Terraform providers",
+      "automerge": false,
+      "reviewers": ["YOUR_GITHUB_USERNAME"]
+    },
+    {
+      "description": "GitHub Actions — auto-merge minor/patch updates",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions",
+      "automerge": true,
+      "automergeType": "pr",
+      "matchUpdateTypes": ["minor", "patch"],
+      "reviewers": []
+    },
+    {
+      "description": "GitHub Actions major updates — manual review",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "reviewers": ["YOUR_GITHUB_USERNAME"]
+    },
+    {
+      "description": "Docker base images",
+      "matchManagers": ["dockerfile"],
+      "groupName": "Docker base images",
+      "automerge": false
+    },
+    {
+      "description": "GKE/Kubernetes related — conservative updates",
+      "matchPackageNames": [
+        "argo-cd",
+        "external-secrets",
+        "metrics-server",
+        "opentelemetry-demo"
+      ],
+      "automerge": false,
+      "stabilityDays": 7
+    }
+  ],
+
+  "customManagers": [
+    {
+      "description": "Update ArgoCD Application targetRevision in YAML",
+      "customType": "regex",
+      "fileMatch": ["^gitops/.*\\.yaml$"],
+      "matchStrings": [
+        "chart: (?<depName>[\\w-]+)\\s+targetRevision: \"(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://argoproj.github.io/argo-helm"
+    }
+  ],
+
+  "schedule": ["every weekend"],
+  "timezone": "Asia/Kolkata",
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2
+}

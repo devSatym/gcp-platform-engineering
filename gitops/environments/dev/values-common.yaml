@@ -1,0 +1,36 @@
+# =============================================================================
+# gitops/environments/dev/values-common.yaml
+#
+# Dev environment overrides — applied when deploying to dev.
+# Lower replicas, reduced resource limits, faster iteration.
+# =============================================================================
+
+environment: dev
+
+# Default replica count for platform components in dev
+replicas: 1
+
+# Resource profile: minimal for dev to keep costs low
+resources:
+  requests:
+    cpu: 25m
+    memory: 32Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
+
+# Feature flags — toggle experimental features in dev only
+features:
+  enableDebugLogging: true
+  enableTracing: true
+  enableMetrics: true
+
+# Autoscaling — HPA disabled in dev (single replica)
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 1
+
+# Ingress — disabled in dev (use port-forward)
+ingress:
+  enabled: false

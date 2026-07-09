@@ -1,0 +1,101 @@
+# =============================================================================
+# gitops/applications/opentelemetry-demo/values/stage.yaml
+#
+# Stage environment overrides — layered on top of base.yaml.
+# Goal: Production-like behavior for pre-release validation and load testing.
+#
+# Key characteristics:
+#   - 2 replicas for Tier 1 critical services (basic HA)
+#   - Load generator ENABLED — for realistic load testing
+#   - Higher user count than dev
+#   - Info-level logging (not debug)
+#   - Prometheus persistence enabled (retain metrics across restarts)
+#   - Stage validates PDB/anti-affinity configs before prod promotion
+# =============================================================================
+
+components:
+  # Tier 1 — 2 replicas for HA validation
+  frontend:
+    replicas: 2
+    podDisruptionBudget:
+      minAvailable: 1
+  frontendProxy:
+    replicas: 2
+    podDisruptionBudget:
+      minAvailable: 1
+  cartService:
+    replicas: 2
+    podDisruptionBudget:
+      minAvailable: 1
+  checkoutService:
+    replicas: 2
+    podDisruptionBudget:
+      minAvailable: 1
+  paymentService:
+    replicas: 2
+    podDisruptionBudget:
+      minAvailable: 1
+  productCatalogService:
+    replicas: 2
+    podDisruptionBudget:
+      minAvailable: 1
+
+  # Tier 2 — single replica (tolerate brief disruption)
+  emailService:
+    replicas: 1
+  recommendationService:
+    replicas: 1
+  currencyService:
+    replicas: 1
+  shippingService:
+    replicas: 1
+  adService:
+    replicas: 1
+  accountingService:
+    replicas: 1
+  frauddetectionService:
+    replicas: 1
+  quoteService:
+    replicas: 1
+
+  # Tier 3 — platform (single, stable)
+  flagd:
+    replicas: 1
+
+  # Tier 4 — load generator ENABLED for load testing
+  loadgenerator:
+    enabled: true
+    replicas: 1
+    envOverrides:
+      - name: LOCUST_SPAWN_RATE
+        value: "5"   # 5 new users/second
+      - name: LOCUST_USERS
+        value: "50"  # 50 concurrent users — realistic load test
+      - name: LOCUST_HOST
+        value: "http://otel-demo-frontend-proxy:8080"
+
+  # Data stores
+  valkey:
+    replicas: 1
+  kafka:
+    replicas: 1
+
+# Observability — all enabled in stage
+grafana:
+  enabled: true
+  persistence:
+    enabled: true
+    size: 5Gi
+
+jaeger:
+  enabled: true
+
+prometheus:
+  enabled: true
+  server:
+    persistentVolume:
+      enabled: true
+      size: 20Gi
+
+opensearch:
+  enabled: false  # Enable when log pipeline is configured in Phase 8

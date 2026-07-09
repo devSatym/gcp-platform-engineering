@@ -1,0 +1,192 @@
+## Global
+global:
+  domain: ""  # No external domain yet — port-forward for UI access (Phase 9 adds Ingress+TLS)
+
+## ─── Server ──────────────────────────────────────────────────────────────────
+server:
+  replicas: 1  # Portfolio: single replica. Set to 2 for HA in production.
+
+  service:
+    type: ClusterIP  # No LoadBalancer — access via port-forward or Ingress (Phase 9)
+
+  extraArgs:
+    - --insecure  # Disable TLS on the server pod itself (TLS termination at Ingress in Phase 9)
+
+  # Workload Identity annotation — links argocd-server K8s SA to the GCP SA.
+  # The GCP SA (sa-argocd) has secretmanager.secretAccessor for Secret Manager access.
+  serviceAccount:
+    create: true
+    name: argocd-server
+    annotations:
+      iam.gke.io/gcp-service-account: "${argocd_sa_email}"
+
+## ─── Repo Server ─────────────────────────────────────────────────────────────
+repoServer:
+  replicas: 1
+
+  serviceAccount:
+    create: true
+    name: argocd-repo-server
+    annotations:
+      iam.gke.io/gcp-service-account: "${argocd_sa_email}"
+
+## ─── Application Controller ──────────────────────────────────────────────────
+controller:
+  replicas: 1
+
+## ─── Application Set Controller ─────────────────────────────────────────────
+applicationSet:
+  replicas: 1
+
+## ─── Core configuration ──────────────────────────────────────────────────────
+configs:
+  # Resource tracking: annotation+label prevents conflicts when a resource is
+  # managed by both Helm and ArgoCD.
+  params:
+    application.resourceTrackingMethod: annotation+label
+    server.insecure: true  # Required when using --insecure flag above
+
+  # ─── Repository credentials ─────────────────────────────────────────────────
+  # ArgoCD needs read access to the monorepo to sync application manifests.
+  # For a public repo, no credentials needed.
+  # For a private repo: add a deploy key or GitHub token as a secret.
+  repositories:
+    project-2:
+      url: "${git_repo_url}"
+      name: project-2
+      type: git
+      # For private repos, uncomment and configure:
+      # insecure: false
+      # sshPrivateKeySecret:
+      #   name: argocd-repo-secret
+      #   key: sshPrivateKey
+
+  # ─── RBAC ───────────────────────────────────────────────────────────────────
+  rbac:
+    # Default role for unauthenticated/unmatched users: readonly.
+    policy.default: role:readonly
+    policy.csv: |
+      # Platform admins — full control over all applications, clusters, repos, projects
+      p, role:platform-admin, applications, *, */*, allow
+      p, role:platform-admin, clusters, *, *, allow
+      p, role:platform-admin, repositories, *, *, allow
+      p, role:platform-admin, projects, *, *, allow
+      p, role:platform-admin, logs, get, */*, allow
+      p, role:platform-admin, exec, create, */*, allow
+
+      # Developers — can view and sync applications in the applications project only
+      p, role:developer, applications, get, applications/*, allow
+      p, role:developer, applications, sync, applications/*, allow
+      p, role:developer, applications, override, applications/*, allow
+      p, role:developer, logs, get, applications/*, allow
+
+      # Observers — read only
+      p, role:observer, applications, get, */*, allow
+
+      # Group bindings
+      g, admin, role:platform-admin
+
+  # ─── ArgoCD ConfigMap (argocd-cm) overrides ─────────────────────────────────
+  cm:
+    # Application health check customizations for operators we'll install
+    resource.customizations.health.argoproj.io_Application: |
+      hs = {}
+      hs.status = "Progressing"
+      hs.message = ""
+      if obj.status ~= nil then
+        if obj.status.health ~= nil then
+          hs.status = obj.status.health.status
+          if obj.status.health.message ~= nil then
+            hs.message = obj.status.health.message
+          end
+        end
+      end
+      return hs
+
+## ─── Notifications ────────────────────────────────────────────────────────────
+# ArgoCD Notifications sends events to external systems (Slack, email, webhooks).
+# Templates below are placeholders — configure triggers and subscriptions separately.
+notifications:
+  enabled: true
+
+  # Notification templates — what the message looks like
+  templates:
+    template.app-sync-succeeded: |
+      message: |
+        ✅ Application {{.app.metadata.name}} synced successfully.
+        Revision: {{.app.status.sync.revision}}
+    template.app-sync-failed: |
+      message: |
+        ❌ Application {{.app.metadata.name}} sync FAILED.
+        Error: {{.app.status.operationState.message}}
+    template.app-health-degraded: |
+      message: |
+        ⚠️ Application {{.app.metadata.name}} health is DEGRADED.
+        Status: {{.app.status.health.status}}
+    template.app-deployed: |
+      message: |
+        🚀 Application {{.app.metadata.name}} has been deployed.
+        Author: {{(call .repo.GetCommitMetadata .app.status.sync.revision).Author}}
+        Message: {{(call .repo.GetCommitMetadata .app.status.sync.revision).Message}}
+
+  # Triggers — when to send notifications
+  triggers:
+    trigger.on-sync-succeeded: |
+      - when: app.status.operationState.phase in ['Succeeded']
+        send: [app-sync-succeeded]
+    trigger.on-sync-failed: |
+      - when: app.status.operationState.phase in ['Error', 'Failed']
+        send: [app-sync-failed]
+    trigger.on-health-degraded: |
+      - when: app.status.health.status == 'Degraded'
+        send: [app-health-degraded]
+    trigger.on-deployed: |
+      - when: app.status.operationState.phase in ['Succeeded'] and app.status.health.status == 'Healthy'
+        send: [app-deployed]
+
+## ─── Node scheduling ──────────────────────────────────────────────────────────
+# ArgoCD components run on the system node pool (platform-critical).
+server:
+  tolerations:
+    - key: "workload"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  nodeSelector:
+    workload: system
+
+repoServer:
+  tolerations:
+    - key: "workload"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  nodeSelector:
+    workload: system
+
+controller:
+  tolerations:
+    - key: "workload"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  nodeSelector:
+    workload: system
+
+applicationSet:
+  tolerations:
+    - key: "workload"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  nodeSelector:
+    workload: system
+
+redis:
+  tolerations:
+    - key: "workload"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  nodeSelector:
+    workload: system

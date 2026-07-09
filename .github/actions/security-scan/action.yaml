@@ -1,0 +1,144 @@
+# =============================================================================
+# .github/actions/security-scan/action.yaml
+#
+# Composite action: SBOM generation + Trivy vulnerability scan + Cosign sign.
+# Encapsulates the full supply-chain security pipeline for reuse.
+#
+# Usage:
+#   - uses: ./.github/actions/security-scan
+#     with:
+#       image: asia-south1-docker.pkg.dev/project/repo/service:sha-abc1234
+#       fail_on_critical: 'true'
+# =============================================================================
+
+name: 'Security Scan'
+description: 'SBOM generation (Syft), vulnerability scan (Trivy), and image signing (Cosign)'
+
+inputs:
+  image:
+    description: 'Full image reference to scan (e.g. registry/repo/service:tag)'
+    required: true
+  fail_on_critical:
+    description: 'Fail the action if CRITICAL vulnerabilities are found'
+    required: false
+    default: 'true'
+  fail_on_high:
+    description: 'Fail the action if HIGH vulnerabilities are found'
+    required: false
+    default: 'false'
+  sign_image:
+    description: 'Sign the image with Cosign after scanning'
+    required: false
+    default: 'true'
+  sbom_format:
+    description: 'SBOM output format: cyclonedx-json or spdx-json'
+    required: false
+    default: 'cyclonedx-json'
+  upload_sarif:
+    description: 'Upload Trivy SARIF results to GitHub Security tab'
+    required: false
+    default: 'true'
+
+outputs:
+  sbom_file:
+    description: 'Path to the generated SBOM file'
+    value: sbom-output.json
+  critical_count:
+    description: 'Number of CRITICAL vulnerabilities found'
+    value: ${{ steps.count.outputs.critical }}
+  high_count:
+    description: 'Number of HIGH vulnerabilities found'
+    value: ${{ steps.count.outputs.high }}
+
+runs:
+  using: composite
+  steps:
+    # ─── SBOM ──────────────────────────────────────────────────────────────
+    - name: Install Syft
+      uses: anchore/sbom-action/download-syft@v0
+
+    - name: Generate SBOM
+      shell: bash
+      run: |
+        syft scan "${{ inputs.image }}" \
+          -o "${{ inputs.sbom_format }}" \
+          > sbom-output.json
+        PACKAGE_COUNT=$(jq '.components | length' sbom-output.json 2>/dev/null || echo "unknown")
+        echo "📦 SBOM generated: ${PACKAGE_COUNT} components"
+
+    - name: Upload SBOM artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: sbom-${{ github.run_id }}
+        path: sbom-output.json
+        retention-days: 90
+
+    # ─── Vulnerability Scan ─────────────────────────────────────────────────
+    - name: Install Trivy
+      shell: bash
+      run: |
+        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+          | sh -s -- -b /usr/local/bin v0.50.1
+
+    - name: Trivy scan (SARIF)
+      if: inputs.upload_sarif == 'true'
+      shell: bash
+      run: |
+        trivy image \
+          --format sarif \
+          --output trivy-results.sarif \
+          --severity CRITICAL,HIGH,MEDIUM \
+          "${{ inputs.image }}"
+
+    - name: Upload SARIF to GitHub Security
+      if: inputs.upload_sarif == 'true'
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: trivy-results.sarif
+        category: trivy-container
+
+    - name: Count vulnerabilities
+      id: count
+      shell: bash
+      run: |
+        CRITICAL=$(trivy image --severity CRITICAL --format json --no-progress "${{ inputs.image }}" | \
+          jq '[.Results[]?.Vulnerabilities // [] | .[] | select(.Severity=="CRITICAL")] | length' 2>/dev/null || echo 0)
+        HIGH=$(trivy image --severity HIGH --format json --no-progress "${{ inputs.image }}" | \
+          jq '[.Results[]?.Vulnerabilities // [] | .[] | select(.Severity=="HIGH")] | length' 2>/dev/null || echo 0)
+
+        echo "critical=${CRITICAL}" >> $GITHUB_OUTPUT
+        echo "high=${HIGH}" >> $GITHUB_OUTPUT
+        echo "🔍 CRITICAL: ${CRITICAL}, HIGH: ${HIGH}"
+
+    - name: Fail on CRITICAL
+      if: inputs.fail_on_critical == 'true'
+      shell: bash
+      run: |
+        if [[ "${{ steps.count.outputs.critical }}" -gt "0" ]]; then
+          echo "❌ Build failed: ${{ steps.count.outputs.critical }} CRITICAL vulnerabilities found"
+          exit 1
+        fi
+        echo "✅ No CRITICAL vulnerabilities"
+
+    - name: Fail on HIGH (if configured)
+      if: inputs.fail_on_high == 'true'
+      shell: bash
+      run: |
+        if [[ "${{ steps.count.outputs.high }}" -gt "0" ]]; then
+          echo "❌ Build failed: ${{ steps.count.outputs.high }} HIGH vulnerabilities found"
+          exit 1
+        fi
+
+    # ─── Image Signing (Cosign keyless) ─────────────────────────────────────
+    - name: Install Cosign
+      if: inputs.sign_image == 'true'
+      uses: sigstore/cosign-installer@v3
+      with:
+        cosign-release: 'v2.4.0'
+
+    - name: Sign image
+      if: inputs.sign_image == 'true'
+      shell: bash
+      run: |
+        cosign sign --yes "${{ inputs.image }}"
+        echo "✅ Image signed: ${{ inputs.image }}"

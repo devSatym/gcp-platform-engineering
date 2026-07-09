@@ -1,0 +1,31 @@
+# =============================================================================
+# gitops/environments/stage/values-common.yaml
+#
+# Stage environment overrides — closer to production, used for load testing.
+# =============================================================================
+
+environment: stage
+
+# Stage: 2 replicas for basic HA validation
+replicas: 2
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+features:
+  enableDebugLogging: false  # Info logging in stage
+  enableTracing: true
+  enableMetrics: true
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 4
+
+ingress:
+  enabled: false  # Enabled in Phase 9 with TLS

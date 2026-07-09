@@ -1,0 +1,93 @@
+# =============================================================================
+# gitops/applications/opentelemetry-demo/values/dev.yaml
+#
+# Dev environment overrides — layered on top of base.yaml.
+# Goal: Fast iteration, full feature set visible, cost-efficient.
+#
+# Key characteristics:
+#   - Single replica for all services (no HA needed in dev)
+#   - Load generator ENABLED — continuously generates traffic for observability
+#   - Load generator on spot nodes — cost-efficient
+#   - All observability tools enabled (Grafana, Jaeger, Prometheus)
+#   - Debug logging on
+#   - Feature flags allow experimental features
+#   - OpenSearch disabled (too heavy for dev node pools)
+# =============================================================================
+
+components:
+  # Tier 1 — single replicas in dev
+  frontend:
+    replicas: 1
+  frontendProxy:
+    replicas: 1
+  cartService:
+    replicas: 1
+  checkoutService:
+    replicas: 1
+  paymentService:
+    replicas: 1
+  productCatalogService:
+    replicas: 1
+
+  # Tier 2 — single replicas
+  emailService:
+    replicas: 1
+  recommendationService:
+    replicas: 1
+  currencyService:
+    replicas: 1
+  shippingService:
+    replicas: 1
+  adService:
+    replicas: 1
+  accountingService:
+    replicas: 1
+  frauddetectionService:
+    replicas: 1
+  quoteService:
+    replicas: 1
+
+  # Tier 3 — platform
+  flagd:
+    replicas: 1
+    # Enable experimental feature flags in dev
+    envOverrides:
+      - name: FLAGD_LOG_LEVEL
+        value: debug
+      - name: FLAGD_METRICS_EXPORTER
+        value: otel
+
+  # Tier 4 — load generator ENABLED in dev
+  loadgenerator:
+    enabled: true
+    replicas: 1
+    envOverrides:
+      - name: LOCUST_SPAWN_RATE
+        value: "1"   # Slow ramp-up — 1 new user/second
+      - name: LOCUST_USERS
+        value: "10"  # 10 concurrent users in dev
+      - name: LOCUST_HOST
+        value: "http://otel-demo-frontend-proxy:8080"
+
+  # Data stores
+  valkey:
+    replicas: 1
+  kafka:
+    replicas: 1
+
+# Observability — all enabled in dev for exploration
+grafana:
+  enabled: true
+  adminPassword: "admin"  # Simple password for dev — use Secret Manager in prod
+
+jaeger:
+  enabled: true
+
+prometheus:
+  enabled: true
+  server:
+    persistentVolume:
+      enabled: false  # No persistence in dev — saves cost
+
+opensearch:
+  enabled: false  # Too resource-heavy for dev node pools

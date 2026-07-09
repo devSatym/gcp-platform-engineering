@@ -1,0 +1,20 @@
+# =============================================================================
+# .hadolint.yaml
+#
+# Hadolint configuration for Dockerfile linting (used in ci.yaml).
+# See: https://github.com/hadolint/hadolint#configure
+# =============================================================================
+
+failure-threshold: warning
+
+ignore:
+  # DL3006: Always tag the version of an image explicitly
+  # We pin exact versions — this rule fires on FROM lines without digest,
+  # but version-pinned tags are acceptable for this project.
+  # Remove this ignore when image digests are enforced (Phase 7 Binary Auth).
+  - DL3006
+
+trustedRegistries:
+  - otel
+  - gcr.io
+  - asia-south1-docker.pkg.dev

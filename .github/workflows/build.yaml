@@ -1,0 +1,206 @@
+# =============================================================================
+# .github/workflows/build.yaml
+#
+# Build & Publish — runs on merge to main.
+#
+# This workflow:
+#   1. Authenticates to GCP using Workload Identity Federation (no JSON keys)
+#   2. Builds multi-architecture Docker images (amd64 + arm64) via Buildx
+#   3. Tags images: sha-{short-sha}, build-{run-number}
+#   4. Pushes to Artifact Registry
+#   5. Updates GitOps manifests with the new image tag
+#   6. Commits and pushes the GitOps update → ArgoCD auto-syncs
+#
+# NOTE: Terraform is NOT in this pipeline.
+# Infrastructure changes have their own workflow (terraform.yaml).
+# Application delivery and infrastructure delivery are independent.
+# =============================================================================
+
+name: Build & Publish
+
+on:
+  push:
+    branches:
+      - main
+    # Only trigger when application code OR the workflow itself changes
+    paths:
+      - 'applications/**'
+      - '.github/workflows/build.yaml'
+      - '.github/actions/**'
+  # Allow manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      force_rebuild:
+        description: 'Force rebuild even without code changes'
+        required: false
+        default: 'false'
+
+# Cancel superseded builds on the same branch
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # !! UPDATE THESE !!
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_REGION: asia-south1
+  REGISTRY: asia-south1-docker.pkg.dev
+  IMAGE_REPO: ${{ vars.GCP_PROJECT_ID }}/platform-docker
+
+jobs:
+  # ─── Build Matrix ──────────────────────────────────────────────────────────
+  # Each service gets its own job in the matrix.
+  # For now, we build a custom OTel Collector with GCP exporter.
+  # Phase 6 adds custom builds; upstream demo services use upstream images.
+  build:
+    name: Build — ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    permissions:
+      contents: write       # For GitOps commit
+      id-token: write       # For WIF OIDC token
+      packages: write       # For container registry
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Custom OTel Collector with GCP exporters
+          - service: otel-collector-custom
+            dockerfile: applications/otel-collector/Dockerfile
+            context: applications/otel-collector/
+
+          # Add custom application Dockerfiles here as the platform grows:
+          # - service: custom-frontend
+          #   dockerfile: applications/frontend/Dockerfile
+          #   context: applications/frontend/
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ─── Image Tag Strategy ──────────────────────────────────────────────
+      # Never use 'latest'. Tags are deterministic and traceable.
+      - name: Compute image tags
+        id: tags
+        run: |
+          SHORT_SHA=$(git rev-parse --short=7 HEAD)
+          BUILD_NUM=${{ github.run_number }}
+          IMAGE_BASE="${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/${{ matrix.service }}"
+
+          echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "image_base=${IMAGE_BASE}" >> $GITHUB_OUTPUT
+          echo "tag_sha=sha-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "tag_build=build-${BUILD_NUM}" >> $GITHUB_OUTPUT
+
+          # Tag with semantic version if triggered by a version tag
+          if [[ "${{ github.ref }}" =~ ^refs/tags/v.* ]]; then
+            VERSION=${GITHUB_REF_NAME}
+            echo "tag_version=${VERSION}" >> $GITHUB_OUTPUT
+          fi
+
+      # ─── GCP Authentication (WIF — no JSON keys) ─────────────────────────
+      - name: Authenticate to GCP (Workload Identity Federation)
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SA_EMAIL }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGISTRY }} --quiet
+
+      # ─── Docker Buildx Setup (multi-arch) ────────────────────────────────
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64
+
+      # QEMU for arm64 cross-compilation on amd64 runners
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/arm64
+
+      # ─── Layer Caching (4-8x faster builds) ──────────────────────────────
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: buildx-${{ matrix.service }}-${{ hashFiles(matrix.dockerfile) }}-${{ github.sha }}
+          restore-keys: |
+            buildx-${{ matrix.service }}-${{ hashFiles(matrix.dockerfile) }}-
+            buildx-${{ matrix.service }}-
+
+      # ─── Build & Push ─────────────────────────────────────────────────────
+      - name: Build and push multi-arch image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ steps.tags.outputs.image_base }}:${{ steps.tags.outputs.tag_sha }}
+            ${{ steps.tags.outputs.image_base }}:${{ steps.tags.outputs.tag_build }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          # Build args for traceability
+          build-args: |
+            BUILD_VERSION=${{ steps.tags.outputs.tag_sha }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+          # Enable provenance and SBOM metadata in the image manifest
+          provenance: true
+          sbom: true
+
+      # Rotate cache to prevent unbounded growth
+      - name: Rotate build cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+      # ─── GitOps Update ───────────────────────────────────────────────────
+      # After push, update the image tag in GitOps manifests.
+      # ArgoCD detects the Git change and auto-syncs → deploy.
+      - name: Update GitOps image tag
+        env:
+          NEW_TAG: ${{ steps.tags.outputs.tag_sha }}
+          SERVICE: ${{ matrix.service }}
+        run: |
+          .github/scripts/update-image-tag.sh "${SERVICE}" "${NEW_TAG}"
+
+      - name: Commit and push GitOps update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add gitops/
+          if git diff --staged --quiet; then
+            echo "No GitOps changes to commit"
+          else
+            git commit -m "chore(gitops): update ${{ matrix.service }} to sha-${{ steps.tags.outputs.short_sha }} [skip ci]"
+            git push origin main
+          fi
+
+      # ─── Output image digest for security workflow ────────────────────────
+      - name: Output image details
+        id: image
+        run: |
+          DIGEST=$(docker buildx imagetools inspect "${{ steps.tags.outputs.image_base }}:${{ steps.tags.outputs.tag_sha }}" \
+            --format '{{json .Manifest.Digest}}' | tr -d '"')
+          echo "digest=${DIGEST}" >> $GITHUB_OUTPUT
+          echo "image=${{ steps.tags.outputs.image_base }}:${{ steps.tags.outputs.tag_sha }}" >> $GITHUB_OUTPUT
+
+      - name: Summary
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | ${{ matrix.service }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | ${{ steps.tags.outputs.image_base }}:${{ steps.tags.outputs.tag_sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Digest | ${{ steps.image.outputs.digest }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Platforms | linux/amd64, linux/arm64 |" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,96 @@
+# =============================================================================
+# gitops/bootstrap/applications-appset.yaml
+#
+# ApplicationSet that generates one OTel Demo Application per environment.
+#
+# Generates:
+#   otel-demo-dev   → namespace: otel-demo-dev   → values: base + dev.yaml
+#   otel-demo-stage → namespace: otel-demo-stage → values: base + stage.yaml
+#   otel-demo-prod  → namespace: otel-demo-prod  → values: base + prod.yaml
+#
+# The multi-source pattern (ArgoCD 2.6+) allows combining:
+#   - The upstream Helm chart from ArtifactHub
+#   - Our custom values files from the monorepo
+# Without forking or copying the upstream chart.
+#
+# Sync Wave 2: Business applications deploy after all platform components
+# (ESO, metrics-server, priority-classes) are healthy.
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: otel-demo
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  # ─── Generator: List ────────────────────────────────────────────────────────
+  generators:
+    - list:
+        elements:
+          - env: dev
+            server: https://kubernetes.default.svc
+            chartVersion: "0.32.8"
+          - env: stage
+            server: https://kubernetes.default.svc
+            chartVersion: "0.32.8"
+          - env: prod
+            server: https://kubernetes.default.svc
+            chartVersion: "0.32.8"
+
+  # ─── Template ───────────────────────────────────────────────────────────────
+  template:
+    metadata:
+      name: "otel-demo-{{env}}"
+      namespace: argocd
+      labels:
+        app.kubernetes.io/part-of: applications
+        environment: "{{env}}"
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+
+    spec:
+      project: applications
+
+      # Multi-source: upstream chart + our values overlay from the monorepo
+      sources:
+        # Source 1: Upstream OTel Demo Helm chart from ArtifactHub
+        - repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+          chart: opentelemetry-demo
+          targetRevision: "{{chartVersion}}"
+          helm:
+            releaseName: otel-demo
+            valueFiles:
+              # $values references the second source (our monorepo)
+              - $values/gitops/applications/opentelemetry-demo/values/base.yaml
+              - $values/gitops/applications/opentelemetry-demo/values/{{env}}.yaml
+
+        # Source 2: Our monorepo provides the values files above
+        - repoURL: "https://github.com/YOUR_USERNAME/project-2.git"  # UPDATE THIS
+          targetRevision: main
+          ref: values   # Declares this source as a $values reference
+
+      destination:
+        server: "{{server}}"
+        namespace: "otel-demo-{{env}}"
+
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+          - RespectIgnoreDifferences=true
+        retry:
+          limit: 5
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 5m
+
+  # ─── Strategy: AllAtOnce (deploy all envs in parallel) ─────────────────────
+  # Each environment has independent sync — dev failure doesn't block stage.
+  syncPolicy:
+    applicationsSync: create-update

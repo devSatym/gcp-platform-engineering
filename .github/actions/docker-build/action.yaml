@@ -1,0 +1,112 @@
+# =============================================================================
+# .github/actions/docker-build/action.yaml
+#
+# Composite action: Multi-architecture Docker build + push to Artifact Registry.
+# Standardizes Buildx usage with layer caching across workflows.
+#
+# Usage:
+#   - uses: ./.github/actions/docker-build
+#     with:
+#       image: asia-south1-docker.pkg.dev/project/repo/service
+#       tag: sha-abc1234
+#       dockerfile: applications/service/Dockerfile
+#       context: applications/service/
+# =============================================================================
+
+name: 'Docker Build (Multi-arch)'
+description: 'Build and push multi-architecture Docker image via Buildx with layer caching'
+
+inputs:
+  image:
+    description: 'Full image base path (without tag). e.g. asia-south1-docker.pkg.dev/project/repo/service'
+    required: true
+  tag:
+    description: 'Primary image tag (e.g. sha-abc1234)'
+    required: true
+  additional_tags:
+    description: 'Newline-separated additional tags (e.g. v1.2.3\nbuild-102)'
+    required: false
+    default: ''
+  dockerfile:
+    description: 'Path to Dockerfile'
+    required: false
+    default: 'Dockerfile'
+  context:
+    description: 'Docker build context path'
+    required: false
+    default: '.'
+  platforms:
+    description: 'Target platforms for multi-arch build'
+    required: false
+    default: 'linux/amd64,linux/arm64'
+  push:
+    description: 'Whether to push the image after build'
+    required: false
+    default: 'true'
+  build_args:
+    description: 'Newline-separated build arguments'
+    required: false
+    default: ''
+
+outputs:
+  digest:
+    description: 'Image digest (sha256:...)'
+    value: ${{ steps.build.outputs.digest }}
+  image_ref:
+    description: 'Full image reference with tag'
+    value: ${{ inputs.image }}:${{ inputs.tag }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up QEMU (for arm64 cross-compilation)
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: linux/arm64
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        platforms: ${{ inputs.platforms }}
+
+    - name: Cache Docker layers
+      uses: actions/cache@v4
+      with:
+        path: /tmp/.buildx-cache
+        key: buildx-${{ inputs.dockerfile }}-${{ github.sha }}
+        restore-keys: |
+          buildx-${{ inputs.dockerfile }}-
+
+    - name: Prepare tags list
+      id: tags
+      shell: bash
+      run: |
+        PRIMARY="${{ inputs.image }}:${{ inputs.tag }}"
+        TAGS="${PRIMARY}"
+        if [[ -n "${{ inputs.additional_tags }}" ]]; then
+          while IFS= read -r line; do
+            [[ -n "${line}" ]] && TAGS="${TAGS}\n${{ inputs.image }}:${line}"
+          done <<< "${{ inputs.additional_tags }}"
+        fi
+        echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+
+    - name: Build and push
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: ${{ inputs.context }}
+        file: ${{ inputs.dockerfile }}
+        platforms: ${{ inputs.platforms }}
+        push: ${{ inputs.push }}
+        tags: ${{ steps.tags.outputs.tags }}
+        cache-from: type=local,src=/tmp/.buildx-cache
+        cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+        build-args: ${{ inputs.build_args }}
+        provenance: true
+        sbom: true
+
+    - name: Rotate build cache
+      shell: bash
+      run: |
+        rm -rf /tmp/.buildx-cache
+        mv /tmp/.buildx-cache-new /tmp/.buildx-cache 2>/dev/null || true

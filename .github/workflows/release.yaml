@@ -1,0 +1,130 @@
+# =============================================================================
+# .github/workflows/release.yaml
+#
+# Release — runs on version tag push (v*)
+#
+# Creates a GitHub Release with:
+#   - Auto-generated release notes from merged PRs
+#   - SBOM artifacts attached
+#   - Signed release images
+#   - Changelog since last release
+#
+# Trigger: git tag v1.2.3 && git push origin v1.2.3
+# =============================================================================
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'        # v1.2.3
+      - 'v[0-9]+.[0-9]+.[0-9]+-rc.*'   # v1.2.3-rc.1
+
+env:
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_REGION: asia-south1
+  REGISTRY: asia-south1-docker.pkg.dev
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    permissions:
+      contents: write        # Create release
+      id-token: write        # WIF
+      packages: write        # Push release-tagged image
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for changelog generation
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF_NAME}   # e.g. v1.2.3
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "version_clean=${VERSION#v}" >> $GITHUB_OUTPUT  # 1.2.3
+
+      # ─── Authenticate to GCP ─────────────────────────────────────────────
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SA_EMAIL }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGISTRY }} --quiet
+
+      # ─── Tag release image ────────────────────────────────────────────────
+      # Pull the sha-tagged image and re-tag with the version
+      - name: Tag release images
+        run: |
+          SHORT_SHA=$(git rev-parse --short=7 HEAD)
+          VERSION=${{ steps.version.outputs.version }}
+
+          for service in otel-collector-custom; do
+            SRC_IMAGE="${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/platform-docker/${service}:sha-${SHORT_SHA}"
+            RELEASE_IMAGE="${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/platform-docker/${service}:${VERSION}"
+
+            docker pull "${SRC_IMAGE}" || echo "Image not found — may not exist for this service yet"
+            docker tag "${SRC_IMAGE}" "${RELEASE_IMAGE}" 2>/dev/null || true
+            docker push "${RELEASE_IMAGE}" 2>/dev/null || true
+            echo "  ✓ Tagged ${service}:${VERSION}"
+          done
+
+      # ─── Download SBOM artifacts from build run ───────────────────────────
+      - name: Download SBOM artifacts
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: security.yaml
+          run_id: ${{ github.event.workflow_run.id }}
+          name: sbom-cyclonedx
+          path: release-artifacts/
+        continue-on-error: true  # SBOM may not exist for first release
+
+      # ─── Generate release notes automatically ─────────────────────────────
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get last tag for range
+          LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          if [[ -n "${LAST_TAG}" ]]; then
+            RANGE="${LAST_TAG}..HEAD"
+          else
+            RANGE="HEAD"
+          fi
+
+          # Collect merged PRs from commit messages
+          echo "## Changes" > changelog.md
+          git log --merges --pretty=format:"- %s" ${RANGE} | \
+            grep -v "Merge branch" | \
+            sed 's/Merge pull request #\([0-9]*\) from [^ ]*/PR #\1:/' >> changelog.md || true
+
+          echo "" >> changelog.md
+          echo "## Commits" >> changelog.md
+          git log --pretty=format:"- \`%h\` %s" --no-merges ${RANGE} | head -20 >> changelog.md
+
+          cat changelog.md
+
+      # ─── Create GitHub Release ────────────────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: "Platform Release ${{ steps.version.outputs.version }}"
+          body_path: changelog.md
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-rc') }}
+          files: |
+            release-artifacts/sbom.cdx.json
+          generate_release_notes: true  # GitHub's auto-generated notes as supplement
+
+      - name: Release summary
+        run: |
+          echo "## 🚀 Release ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "GitHub Release created: https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY

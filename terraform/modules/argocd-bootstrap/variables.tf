@@ -1,0 +1,59 @@
+# =============================================================================
+# modules/argocd-bootstrap/variables.tf
+# =============================================================================
+
+variable "project_id" {
+  description = "GCP project ID."
+  type        = string
+}
+
+# ─── GKE cluster (from Phase 3 gke module outputs) ───────────────────────────
+
+variable "cluster_name" {
+  description = "GKE cluster name. From gke module output."
+  type        = string
+}
+
+variable "cluster_endpoint" {
+  description = "GKE API server endpoint (IP). From gke module output."
+  type        = string
+  sensitive   = true
+}
+
+variable "cluster_ca_certificate" {
+  description = "Base64-encoded GKE cluster CA certificate. From gke module output."
+  type        = string
+  sensitive   = true
+}
+
+variable "cluster_region" {
+  description = "GKE cluster region. From gke module output."
+  type        = string
+  default     = "asia-south1"
+}
+
+# ─── Service accounts (from Phase 2 service-accounts module outputs) ──────────
+
+variable "argocd_sa_email" {
+  description = "GCP SA email for ArgoCD Workload Identity binding. From service_accounts module."
+  type        = string
+}
+
+variable "external_secrets_sa_email" {
+  description = "GCP SA email for External Secrets Operator Workload Identity binding."
+  type        = string
+}
+
+# ─── ArgoCD configuration ─────────────────────────────────────────────────────
+
+variable "argocd_chart_version" {
+  description = "ArgoCD Helm chart version to install. Pin to a known stable version."
+  type        = string
+  default     = "7.7.10"
+}
+
+variable "git_repo_url" {
+  description = "HTTPS URL of the Git monorepo ArgoCD will watch. Update to your actual GitHub repo URL."
+  type        = string
+  default     = "https://github.com/YOUR_USERNAME/project-2.git"
+}
