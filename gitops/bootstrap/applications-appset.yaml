@@ -3,10 +3,14 @@
 #
 # ApplicationSet that generates one OTel Demo Application per environment.
 #
-# Generates:
-#   otel-demo-dev   → namespace: otel-demo-dev   → values: base + dev.yaml
-#   otel-demo-stage → namespace: otel-demo-stage → values: base + stage.yaml
-#   otel-demo-prod  → namespace: otel-demo-prod  → values: base + prod.yaml
+# SINGLE-CLUSTER ARCHITECTURE NOTE:
+#   OTel Demo sub-charts (Grafana, Prometheus, Jaeger, OTel Collector) install
+#   cluster-scoped ClusterRoles with FIXED names (grafana-clusterrole, etc.).
+#   On a single cluster, deploying to multiple environments creates naming
+#   conflicts — ArgoCD marks apps as Degraded with SharedResourceWarning.
+#
+#   Current: dev only (single GKE cluster)
+#   Future:  Add stage/prod when dedicated clusters are provisioned
 #
 # The multi-source pattern (ArgoCD 2.6+) allows combining:
 #   - The upstream Helm chart from ArtifactHub
@@ -26,18 +30,24 @@ metadata:
     argocd.argoproj.io/sync-wave: "2"
 spec:
   # ─── Generator: List ────────────────────────────────────────────────────────
+  # Single environment on single cluster.
+  # Stage/prod require separate clusters to avoid ClusterRole name collisions.
   generators:
     - list:
         elements:
           - env: dev
             server: https://kubernetes.default.svc
             chartVersion: "0.40.9"
-          - env: stage
-            server: https://kubernetes.default.svc
-            chartVersion: "0.40.9"
-          - env: prod
-            server: https://kubernetes.default.svc
-            chartVersion: "0.40.9"
+          # stage and prod require dedicated clusters. Enabling on a single cluster:
+          #   1. sub-chart ClusterRoles collide (grafana-clusterrole, prometheus, etc.)
+          #   2. ArgoCD marks apps Degraded with SharedResourceWarning
+          #   3. 3x resource pressure exhausts node CPU (99% utilized)
+          # - env: stage
+          #   server: https://<stage-cluster-endpoint>
+          #   chartVersion: "0.40.9"
+          # - env: prod
+          #   server: https://<prod-cluster-endpoint>
+          #   chartVersion: "0.40.9"
 
   # ─── Template ───────────────────────────────────────────────────────────────
   template:
@@ -55,7 +65,7 @@ spec:
 
       # Multi-source: upstream chart + our values overlay from the monorepo
       sources:
-        # Source 1: Upstream OTel Demo Helm chart from ArtifactHub
+        # Source 1: Upstream OTel Demo Helm chart
         - repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
           chart: opentelemetry-demo
           targetRevision: "{{chartVersion}}"
@@ -67,7 +77,7 @@ spec:
               - $values/gitops/applications/opentelemetry-demo/values/{{env}}.yaml
 
         # Source 2: Our monorepo provides the values files above
-        - repoURL: "https://github.com/devSatym/gcp-platform-engineering.git"  # UPDATE THIS
+        - repoURL: "https://github.com/devSatym/gcp-platform-engineering.git"
           targetRevision: main
           ref: values   # Declares this source as a $values reference
 
@@ -90,7 +100,23 @@ spec:
             factor: 2
             maxDuration: 5m
 
-  # ─── Strategy: AllAtOnce (deploy all envs in parallel) ─────────────────────
-  # Each environment has independent sync — dev failure doesn't block stage.
+      # ─── IgnoreDifferences ──────────────────────────────────────────────────
+      # Prevents ArgoCD from marking apps Degraded due to K8s API fields
+      # not declared in ArgoCD's internal schema (e.g. .status.terminatingReplicas).
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /status
+        - group: apps
+          kind: StatefulSet
+          jsonPointers:
+            - /status
+        - group: ""
+          kind: Service
+          jsonPointers:
+            - /spec/clusterIPs
+
+  # ─── Strategy ───────────────────────────────────────────────────────────────
   syncPolicy:
     applicationsSync: create-update

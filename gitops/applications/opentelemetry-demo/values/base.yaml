@@ -308,71 +308,28 @@ components:
         workload: general
 
 # ─── Observability Sub-charts ──────────────────────────────────────────────────
-# These are separate Helm sub-charts bundled with the OTel Demo.
-# Phase 8 will externalize these into dedicated ArgoCD Applications.
+# DISABLED at base level — enabled only in dev.yaml.
+#
+# These sub-charts install cluster-scoped ClusterRoles with FIXED names
+# (grafana-clusterrole, otel-collector, prometheus). On a single cluster,
+# deploying these to multiple environments creates SharedResourceWarning
+# conflicts — ArgoCD marks all but the first environment as Degraded.
+#
+# Phase 8 will move these to dedicated ArgoCD Applications in the
+# observability project with proper cluster-scoped resource isolation.
 
 opentelemetry-collector:
-  resources:
-    requests:
-      cpu: 100m
-      memory: 256Mi
-    limits:
-      cpu: 500m
-      memory: 512Mi
-  config:
-    exporters:
-      prometheus:
-        endpoint: "0.0.0.0:9090"
-      jaeger:
-        endpoint: jaeger-collector:14250
-        tls:
-          insecure: true
-    service:
-      pipelines:
-        traces:
-          exporters: [jaeger, otlp]
-        metrics:
-          exporters: [prometheus]
-        logs:
-          exporters: [debug]
+  enabled: false
 
 prometheus:
-  server:
-    resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
-      limits:
-        cpu: 500m
-        memory: 1Gi
-    persistentVolume:
-      enabled: true
-      size: 10Gi
-      storageClass: standard-rwo
+  enabled: false
 
 grafana:
-  resources:
-    requests:
-      cpu: 50m
-      memory: 128Mi
-    limits:
-      cpu: 200m
-      memory: 512Mi
-  persistence:
-    enabled: true
-    size: 5Gi
-    storageClassName: standard-rwo
+  enabled: false
 
 jaeger:
-  allInOne:
-    resources:
-      requests:
-        cpu: 50m
-        memory: 128Mi
-      limits:
-        cpu: 200m
-        memory: 512Mi
+  enabled: false
 
-# Disable heavy/unneeded sub-charts for dev initially
 opensearch:
-  enabled: false  # ~1GB RAM — enable in stage/prod when needed
+  enabled: false
+

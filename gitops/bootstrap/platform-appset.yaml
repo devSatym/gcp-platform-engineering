@@ -1,13 +1,17 @@
 # =============================================================================
 # gitops/bootstrap/platform-appset.yaml
 #
-# ApplicationSet that generates platform component Applications for dev, stage,
-# and prod environments from a single template.
+# ApplicationSet that generates platform component Applications per environment.
 #
-# Benefits over individual Application YAMLs per environment:
-#   - Zero duplication: one template generates N environments
-#   - Adding a new environment = adding one list entry
-#   - Multi-cluster ready: change the `cluster` field to add new clusters
+# SINGLE-CLUSTER ARCHITECTURE NOTE:
+#   Platform manages cluster-scoped resources (PriorityClasses, ESO CRDs,
+#   metrics-server APIService). On a single cluster, only ONE platform app
+#   can own these resources — multiple apps fight via SSA field managers
+#   and cause permanent OutOfSync.
+#
+#   Current: dev only (single GKE cluster)
+#   Future:  Add stage/prod when dedicated clusters are provisioned
+#            (Phase 16+ multi-cluster with ArgoCD cluster secrets)
 #
 # Sync Wave -1: AppSets create Applications, which must exist before they sync.
 # =============================================================================
@@ -21,17 +25,22 @@ metadata:
     argocd.argoproj.io/sync-wave: "-1"
 spec:
   # ─── Generator: List ────────────────────────────────────────────────────────
-  # Generates one Application per environment entry.
-  # When multi-cluster is added (Phase 16+), update the `server` field here.
+  # Single environment on single cluster.
+  # To add stage/prod: provision separate GKE clusters and add entries here
+  # with their respective server URLs from ArgoCD cluster secrets.
   generators:
     - list:
         elements:
           - env: dev
             server: https://kubernetes.default.svc
-          - env: stage
-            server: https://kubernetes.default.svc
-          - env: prod
-            server: https://kubernetes.default.svc
+          # stage and prod are commented out until dedicated clusters exist.
+          # Enabling them on a single cluster causes:
+          #   1. SSA field manager conflicts on cluster-scoped resources
+          #   2. Permanent OutOfSync on PriorityClasses, ESO, metrics-server
+          # - env: stage
+          #   server: https://<stage-cluster-endpoint>
+          # - env: prod
+          #   server: https://<prod-cluster-endpoint>
 
   # ─── Template: Application per environment ──────────────────────────────────
   template:
@@ -44,7 +53,7 @@ spec:
     spec:
       project: platform
       source:
-        repoURL: "https://github.com/devSatym/gcp-platform-engineering.git"  # UPDATE THIS
+        repoURL: "https://github.com/devSatym/gcp-platform-engineering.git"
         targetRevision: main
         path: gitops/platform
       destination:

@@ -6,16 +6,14 @@
 #
 # Key characteristics:
 #   - Single replica for all services (no HA needed in dev)
-#   - Load generator ENABLED — continuously generates traffic for observability
-#   - Load generator on spot nodes — cost-efficient
-#   - All observability tools enabled (Grafana, Jaeger, Prometheus)
-#   - Debug logging on
-#   - Feature flags allow experimental features
-#   - OpenSearch disabled (too heavy for dev node pools)
+#   - Load generator ENABLED — generates traffic for observability
+#   - Observability sub-charts ENABLED only here (disabled in base.yaml
+#     to prevent ClusterRole naming conflicts across environments)
+#   - Minimal resource requests to fit on 2× e2-standard-4 nodes
 # =============================================================================
 
 components:
-  # Tier 1 — single replicas in dev
+  # ─── Tier 1 — single replicas in dev ─────────────────────────────────────
   frontend:
     replicas: 1
   frontend-proxy:
@@ -29,7 +27,7 @@ components:
   product-catalog:
     replicas: 1
 
-  # Tier 2 — single replicas
+  # ─── Tier 2 — single replicas ─────────────────────────────────────────────
   email:
     replicas: 1
   recommendation:
@@ -47,46 +45,82 @@ components:
   quote:
     replicas: 1
 
-  # Tier 3 — platform
+  # ─── Tier 3 — platform ────────────────────────────────────────────────────
   flagd:
     replicas: 1
     envOverrides:
       - name: FLAGD_LOG_LEVEL
         value: debug
-      - name: FLAGD_METRICS_EXPORTER
-        value: otel
 
-  # Tier 4 — load generator ENABLED in dev
+  # ─── Tier 4 — load generator on spot node ─────────────────────────────────
   load-generator:
     enabled: true
     replicas: 1
     envOverrides:
       - name: LOCUST_SPAWN_RATE
-        value: "1"   # Slow ramp-up — 1 new user/second
+        value: "1"
       - name: LOCUST_USERS
-        value: "10"  # 10 concurrent users in dev
+        value: "5"    # Reduced — cluster has limited headroom
       - name: LOCUST_HOST
         value: "http://otel-demo-frontend-proxy:8080"
 
-  # Data stores
+  # ─── Data stores ──────────────────────────────────────────────────────────
   valkey-cart:
     replicas: 1
   kafka:
     replicas: 1
 
-# Observability — all enabled in dev for exploration
-grafana:
-  enabled: true
-  adminPassword: "admin"  # Simple password for dev — use Secret Manager in prod
+# ─── Observability Sub-charts — enabled for dev ONLY ─────────────────────────
+# Re-enables what base.yaml disables. Only deployed in this single dev
+# environment to avoid ClusterRole name collisions across environments.
+# Resources are lean to fit within 2× e2-standard-4 node capacity.
 
-jaeger:
+opentelemetry-collector:
   enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
 
 prometheus:
   enabled: true
   server:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        cpu: 200m
+        memory: 512Mi
     persistentVolume:
-      enabled: false  # No persistence in dev — saves cost
+      enabled: false   # No persistence in dev — saves cost and PVC provisioning time
+
+grafana:
+  enabled: true
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 256Mi
+  persistence:
+    enabled: false     # Stateless in dev — dashboards reload from configmaps
+  adminPassword: "admin"
+
+jaeger:
+  enabled: true
+  allInOne:
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 256Mi
 
 opensearch:
-  enabled: false  # Too resource-heavy for dev node pools
+  enabled: false  # Too heavy (~1GB RAM) for dev nodes
