@@ -24,8 +24,11 @@ components:
     replicas: 1
   payment:
     replicas: 1
+  # product-catalog in v0.40.9 requires PostgreSQL (DB_CONNECTION_STRING).
+  # We disabled postgresql to save resources → product-catalog cannot start.
+  # Re-enable both when dedicated DB infrastructure is provisioned (Phase 8).
   product-catalog:
-    replicas: 1
+    enabled: false
 
   # ─── Tier 2 — single replicas ─────────────────────────────────────────────
   email:
@@ -56,6 +59,13 @@ components:
   load-generator:
     enabled: true
     replicas: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 512Mi   # Locust/Python needs ~200-300Mi; upstream has no default limit
     envOverrides:
       - name: LOCUST_SPAWN_RATE
         value: "1"

@@ -54,6 +54,10 @@ components:
     enabled: false   # Requires PostgreSQL — disabled for cost
   postgresql:
     enabled: false   # Heavy DB — product-reviews dependency, not needed
+  # product-catalog in v0.40.9 requires PostgreSQL (DB_CONNECTION_STRING env var).
+  # Disabled globally since postgresql is disabled. Re-enable both together in Phase 8.
+  product-catalog:
+    enabled: false
 
 
   # ═══════════════════════════════════════════════════════════════════════════
