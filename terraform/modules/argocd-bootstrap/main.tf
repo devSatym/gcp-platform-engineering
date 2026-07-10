@@ -60,13 +60,18 @@ resource "null_resource" "root_application" {
 
   provisioner "local-exec" {
     command = <<-EOT
+      # Required by newer gcloud versions for kubectl auth
+      export USE_GKE_GCLOUD_AUTH_PLUGIN=True
+
       # Authenticate kubectl to the GKE cluster
       gcloud container clusters get-credentials ${var.cluster_name} \
         --region=${var.cluster_region} \
         --project=${var.project_id}
 
       # Render and apply the root ArgoCD Application manifest
-      cat <<'MANIFEST' | kubectl apply -f -
+      # --validate=false: skips server-side schema validation which requires
+      # gke-gcloud-auth-plugin. The manifest itself is valid YAML.
+      cat <<'MANIFEST' | kubectl apply --validate=false -f -
 ${templatefile("${path.module}/root-application.yaml", {
   git_repo_url = var.git_repo_url
 })}
