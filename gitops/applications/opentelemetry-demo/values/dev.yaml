@@ -52,24 +52,9 @@ components:
       - name: FLAGD_LOG_LEVEL
         value: debug
 
-  # ─── Tier 4 — load generator on spot node ─────────────────────────────────
+  # ─── Tier 4 — load generator (disabled) ──────────────────────────────────
   load-generator:
-    enabled: true
-    replicas: 1
-    resources:
-      requests:
-        cpu: 50m
-        memory: 128Mi
-      limits:
-        cpu: 200m
-        memory: 512Mi   # Locust/Python needs ~200-300Mi; upstream has no default limit
-    envOverrides:
-      - name: LOCUST_SPAWN_RATE
-        value: "1"
-      - name: LOCUST_USERS
-        value: "5"    # Reduced — cluster has limited headroom
-      - name: LOCUST_HOST
-        value: "http://otel-demo-frontend-proxy:8080"
+    enabled: false
 
   # ─── Data stores ──────────────────────────────────────────────────────────
   valkey-cart:
