@@ -62,15 +62,10 @@ resource "google_container_cluster" "primary" {
   # ─── Dataplane V2 — eBPF Networking ───────────────────────────────────────
   # Replaces kube-proxy and iptables with eBPF (Cilium-based).
   # Benefits: better network policy performance, lower latency, richer observability.
-  # ADVANCED_DATAPATH_V2 enables Network Policies automatically.
+  # NOTE: ADVANCED_DATAPATH enables Network Policies automatically.
+  # An explicit network_policy{} block is REJECTED by the GKE API with error 400
+  # when this datapath is selected — do NOT add it back.
   datapath_provider = "ADVANCED_DATAPATH"
-
-  # Network policy is implicitly enabled by Dataplane V2.
-  # Explicit declaration for documentation clarity.
-  network_policy {
-    enabled  = true
-    provider = "PROVIDER_UNSPECIFIED" # Dataplane V2 is the provider
-  }
 
   # ─── Workload Identity ────────────────────────────────────────────────────
   # Enables keyless pod-to-GCP-SA authentication.
@@ -84,8 +79,10 @@ resource "google_container_cluster" "primary" {
   # Blocks legacy metadata APIs that could leak SA tokens.
   node_config {
     # This default node pool is removed immediately after cluster creation.
-    # Its config is irrelevant but must be specified.
+    # disk_type must be pd-standard — pd-ssd (default) exceeds SSD quota in asia-south1.
     machine_type = "e2-medium"
+    disk_type    = "pd-standard"
+    disk_size_gb = 30
     service_account = var.gke_node_sa_email
     oauth_scopes = ["https://www.googleapis.com/auth/cloud-platform"]
 

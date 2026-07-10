@@ -20,7 +20,7 @@ set -euo pipefail
 # ─────────────────────────────────────────────────────────────────────────────
 # CONFIGURATION — Update these before running
 # ─────────────────────────────────────────────────────────────────────────────
-PROJECT_ID="platform-engineering-demo"    # <-- UPDATE THIS
+PROJECT_ID="valiant-house-502004-k2"    # <-- UPDATE THIS
 REGION="asia-south1"
 TF_STATE_BUCKET="${PROJECT_ID}-tf-state"
 TF_SA_NAME="sa-terraform"

@@ -10,7 +10,7 @@ terraform {
   backend "gcs" {
     # !! UPDATE THIS: replace with your actual GCS bucket name !!
     # Format: {project_id}-tf-state
-    bucket = "platform-engineering-demo-tf-state"
+    bucket = "valiant-house-502004-k2-tf-state"
 
     # State file path within the bucket — unique per environment
     prefix = "dev/foundation"

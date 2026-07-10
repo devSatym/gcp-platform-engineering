@@ -40,7 +40,7 @@ resource "google_container_node_pool" "system" {
   node_config {
     machine_type = var.system_pool_machine_type # e2-medium (2 vCPU, 4 GB)
     disk_type    = "pd-standard"
-    disk_size_gb = 50
+    disk_size_gb = 50  # OS + ArgoCD/ESO/Prometheus/Falco images
 
     # Use the dedicated GKE node SA — never the default Compute SA.
     service_account = var.gke_node_sa_email
@@ -116,7 +116,7 @@ resource "google_container_node_pool" "general" {
   node_config {
     machine_type = var.general_pool_machine_type # e2-standard-4 (4 vCPU, 16 GB)
     disk_type    = "pd-standard"
-    disk_size_gb = 100 # More space for container images from Artifact Registry
+    disk_size_gb = 80  # OTel demo images (~2-3GB each) + observability stack
 
     service_account = var.gke_node_sa_email
     oauth_scopes    = ["https://www.googleapis.com/auth/cloud-platform"]
@@ -174,7 +174,7 @@ resource "google_container_node_pool" "spot" {
   node_config {
     machine_type = var.spot_pool_machine_type # e2-standard-2 (2 vCPU, 8 GB)
     disk_type    = "pd-standard"
-    disk_size_gb = 50
+    disk_size_gb = 50  # Standard — spot nodes pull images on demand
 
     # Spot VMs — up to 91% cheaper than on-demand, but can be preempted with 30s notice.
     # Only schedule workloads here that can handle sudden termination gracefully.

@@ -8,7 +8,7 @@
   ],
 
   "labels": ["dependencies", "renovate"],
-  "assignees": ["YOUR_GITHUB_USERNAME"],
+  "assignees": ["devSatym"],
 
   "packageRules": [
     {
@@ -17,14 +17,14 @@
       "matchFileNames": ["gitops/**/*.yaml", "gitops/**/*.yml"],
       "groupName": "Helm charts",
       "automerge": false,
-      "reviewers": ["YOUR_GITHUB_USERNAME"]
+      "reviewers": ["devSatym"]
     },
     {
       "description": "Terraform providers — manual review required",
       "matchManagers": ["terraform"],
       "groupName": "Terraform providers",
       "automerge": false,
-      "reviewers": ["YOUR_GITHUB_USERNAME"]
+      "reviewers": ["devSatym"]
     },
     {
       "description": "GitHub Actions — auto-merge minor/patch updates",
@@ -40,7 +40,7 @@
       "matchManagers": ["github-actions"],
       "matchUpdateTypes": ["major"],
       "automerge": false,
-      "reviewers": ["YOUR_GITHUB_USERNAME"]
+      "reviewers": ["devSatym"]
     },
     {
       "description": "Docker base images",

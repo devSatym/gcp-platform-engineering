@@ -1,12 +1,16 @@
 # =============================================================================
 # modules/argocd-bootstrap/providers.tf
 #
-# Configures the Kubernetes and Helm providers to authenticate against the GKE
-# cluster that was created in Phase 3.
+# Declares the providers this module requires.
 #
-# Authentication uses the gcloud CLI (Application Default Credentials).
-# This works both locally (after gcloud auth application-default login) and
-# in CI (via Workload Identity Federation in Phase 6).
+# NOTE: Provider *configuration* (host, credentials, etc.) is NOT done here.
+# Child modules must not configure providers — only the root module does.
+# The root module passes helm/null providers down to this module implicitly.
+#
+# NOTE: The kubernetes provider was removed. The root ArgoCD Application is
+# now applied via null_resource + local-exec (kubectl apply) instead of
+# kubernetes_manifest. This avoids the "no client config" plan-time error
+# that occurs when the cluster doesn't exist yet on first apply.
 # =============================================================================
 
 terraform {
@@ -21,57 +25,12 @@ terraform {
       source  = "hashicorp/helm"
       version = "~> 2.12"
     }
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = "~> 2.27"
+    # null_resource applies the ArgoCD root Application via kubectl during apply
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.0"
     }
   }
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Helm provider — connects to the GKE cluster
-# ─────────────────────────────────────────────────────────────────────────────
-provider "helm" {
-  kubernetes {
-    host                   = "https://${var.cluster_endpoint}"
-    cluster_ca_certificate = base64decode(var.cluster_ca_certificate)
 
-    # Use gcloud exec to get an access token.
-    # This avoids storing static credentials and works with ADC.
-    exec {
-      api_version = "client.authentication.k8s.io/v1beta1"
-      command     = "gcloud"
-      args = [
-        "container",
-        "clusters",
-        "get-credentials",
-        var.cluster_name,
-        "--region", var.cluster_region,
-        "--project", var.project_id,
-        "--quiet",
-      ]
-    }
-  }
-}
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Kubernetes provider — for applying the root Application manifest
-# ─────────────────────────────────────────────────────────────────────────────
-provider "kubernetes" {
-  host                   = "https://${var.cluster_endpoint}"
-  cluster_ca_certificate = base64decode(var.cluster_ca_certificate)
-
-  exec {
-    api_version = "client.authentication.k8s.io/v1beta1"
-    command     = "gcloud"
-    args = [
-      "container",
-      "clusters",
-      "get-credentials",
-      var.cluster_name,
-      "--region", var.cluster_region,
-      "--project", var.project_id,
-      "--quiet",
-    ]
-  }
-}

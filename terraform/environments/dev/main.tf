@@ -101,20 +101,20 @@ module "gke" {
   argocd_sa_email           = module.service_accounts.argocd_sa_email
   external_secrets_sa_email = module.service_accounts.external_secrets_sa_email
 
-  # Dev-sized pools — keep costs manageable
-  system_pool_machine_type  = "e2-medium"
-  system_pool_min_count     = 1
-  system_pool_max_count     = 2
+  # ── All sizes come from local.sizing in locals.tf — change there, not here ──
+  system_pool_machine_type  = local.sizing.system_machine_type
+  system_pool_min_count     = local.sizing.system_min_count
+  system_pool_max_count     = local.sizing.system_max_count
 
-  general_pool_machine_type = "e2-standard-4"
-  general_pool_min_count    = 1
-  general_pool_max_count    = 3
+  general_pool_machine_type = local.sizing.general_machine_type
+  general_pool_min_count    = local.sizing.general_min_count
+  general_pool_max_count    = local.sizing.general_max_count
 
-  spot_pool_machine_type    = "e2-standard-2"
-  spot_pool_min_count       = 0
-  spot_pool_max_count       = 2
+  spot_pool_machine_type    = local.sizing.spot_machine_type
+  spot_pool_min_count       = local.sizing.spot_min_count
+  spot_pool_max_count       = local.sizing.spot_max_count
 
-  # Dev: public API endpoint with open authorized networks for easy kubectl access.
+  # Dev: public API endpoint — allows kubectl from local machine.
   # Prod: set enable_private_endpoint=true, master_authorized_cidr to VPN CIDR.
   enable_private_endpoint = false
   master_authorized_cidr  = "0.0.0.0/0"
@@ -143,9 +143,14 @@ module "argocd_bootstrap" {
 
   git_repo_url = "https://github.com/devSatym/gcp-platform-engineering.git"
 
-  # NOTE: No explicit depends_on — the argocd-bootstrap module has internal
-  # helm/kubernetes providers which makes depends_on incompatible (Terraform error).
-  # Terraform infers the dependency automatically from the cluster_* input variables.
+  # IMPORTANT: depends_on = [module.gke] is required here.
+  # The WI IAM bindings in argocd-bootstrap use the member format:
+  #   serviceAccount:{project}.svc.id.goog[namespace/sa]
+  # The identity pool ({project}.svc.id.goog) is only created AFTER the GKE
+  # cluster with workload_identity_config is fully provisioned.
+  # Without this, Terraform runs WI bindings in parallel with cluster creation
+  # and gets: "Identity Pool does not exist" error 400.
+  depends_on = [module.gke]
 }
 
 # ─────────────────────────────────────────────────────────────────────────────

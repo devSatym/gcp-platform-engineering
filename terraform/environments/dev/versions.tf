@@ -14,14 +14,15 @@ terraform {
       source  = "hashicorp/google-beta"
       version = "~> 5.0"
     }
-    # Required by the argocd-bootstrap child module (helm_release + kubernetes_manifest)
+    # Required by argocd-bootstrap module (helm_release)
     helm = {
       source  = "hashicorp/helm"
       version = "~> 2.12"
     }
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = "~> 2.27"
+    # Required by argocd-bootstrap module (null_resource for root Application)
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.0"
     }
   }
 }
@@ -38,4 +39,19 @@ provider "google" {
 provider "google-beta" {
   project = var.project_id
   region  = var.region
+}
+
+# Fetches a short-lived OAuth2 access token from Application Default Credentials.
+# Used by the helm and kubernetes providers to authenticate to GKE.
+data "google_client_config" "default" {}
+
+# Helm provider — authenticates to GKE using cluster outputs.
+# The cluster endpoint and CA cert come from the gke module after it is applied.
+# This avoids the "no client config" error on first plan when the cluster doesn't exist yet.
+provider "helm" {
+  kubernetes {
+    host                   = "https://${module.gke.cluster_endpoint}"
+    token                  = data.google_client_config.default.access_token
+    cluster_ca_certificate = base64decode(module.gke.cluster_ca_certificate)
+  }
 }

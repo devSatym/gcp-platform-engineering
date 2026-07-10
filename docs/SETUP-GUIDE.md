@@ -73,12 +73,14 @@ You need these 3 values before starting. Keep them handy throughout this guide:
 ```
 GCP_PROJECT_ID  = _______________   # e.g. "my-platform-prod-12345"
 GITHUB_USERNAME = _______________   # e.g. "devSatym"
-GITHUB_REPO     = _______________   # e.g. "devSatym/gcp-platform-engineering"
+GITHUB_REPO     = _______________   # e.g. "devSatym/gcp-platform-engineering" 
 ```
 
 ---
 
 ## Step 0 — Clone & Configure
+
+> 📍 **Run from:** Your local machine terminal, any directory.
 
 ### 0.1 — Clone the repository
 
@@ -94,9 +96,13 @@ remote: Enumerating objects: 312, done.
 ...
 ```
 
+> 💡 **All future commands assume you are inside the `gcp-platform-engineering/` directory unless stated otherwise.**
+
 ---
 
 ### 0.2 — Authenticate to GCP
+
+> 📍 **Run from:** Your local machine terminal, inside `gcp-platform-engineering/`.
 
 ```bash
 # Login with your user account
@@ -107,6 +113,9 @@ gcloud auth application-default login
 
 # Set your project
 gcloud config set project YOUR_GCP_PROJECT_ID
+
+# Export it as an env var — required by all later commands
+export GCP_PROJECT_ID="YOUR_GCP_PROJECT_ID"
 ```
 
 **Verify authentication:**
@@ -127,6 +136,8 @@ region = asia-south1
 ---
 
 ## Step 1 — Replace All Placeholders
+
+> 📍 **Run from:** Your local machine terminal, inside `gcp-platform-engineering/` (repo root).
 
 > ⚠️ **Critical step.** The codebase still contains `platform-engineering-demo` as the default project ID in `terraform.tfvars` and `backend.tf`. You must replace it before running any Terraform command.
 
@@ -181,7 +192,42 @@ grep -rn "platform-engineering-demo\|YOUR_GCP_PROJECT_ID\|YOUR_GITHUB_USERNAME" 
 
 The bootstrap script creates the Terraform state bucket and Terraform service account in one shot.
 
+> 📍 **Run from:** Your local machine terminal, inside `gcp-platform-engineering/` (repo root).
+
+### 2.0 — Edit `bootstrap.sh` with your project ID first
+
+> ⚠️ **Do this before running the script.** The script has `platform-engineering-demo` hardcoded at the top — you must change it to your actual GCP project ID.
+
+```bash
+# Open the file
+nano bootstrap/bootstrap.sh
+# OR
+vim bootstrap/bootstrap.sh
+```
+
+Find line 23 (near the top of the file):
+```bash
+# BEFORE (line 23 of bootstrap.sh)
+PROJECT_ID="platform-engineering-demo"    # <-- UPDATE THIS
+```
+
+Change it to your actual project ID:
+```bash
+# AFTER
+PROJECT_ID="your-actual-gcp-project-id"  # e.g. "my-platform-12345"
+```
+
+Save and close the file.
+
+**Verify the change:**
+```bash
+grep 'PROJECT_ID=' bootstrap/bootstrap.sh
+# Expected: PROJECT_ID="your-actual-gcp-project-id"
+```
+
 ### 2.1 — Run bootstrap
+
+> 📍 **Run from:** `gcp-platform-engineering/` (repo root — NOT inside any subdirectory).
 
 ```bash
 chmod +x bootstrap/bootstrap.sh
@@ -242,12 +288,16 @@ Credentials saved to file: [/home/user/.config/gcloud/application_default_creden
 
 ## Step 3 — Terraform Apply Dev (Phases 2–6)
 
+> 📍 **Run from:** Your local machine terminal. You will `cd` into `terraform/environments/dev/` for all commands in this step.
+
 > This single `terraform apply` creates everything: VPC, GKE, ArgoCD, Artifact Registry, and WIF. It takes **15–25 minutes** (GKE cluster creation is the slow step).
 
 ### 3.1 — Initialize Terraform
 
 ```bash
+# Move into the dev environment directory
 cd terraform/environments/dev
+
 terraform init
 ```
 
@@ -394,6 +444,8 @@ workload_identity_pool     = "your-project-id.svc.id.goog"
 
 ## Step 4 — Connect kubectl
 
+> 📍 **Run from:** Your local machine terminal. You can be in any directory (gcloud/kubectl are global commands).
+
 ### 4.1 — Get cluster credentials
 
 ```bash
@@ -438,6 +490,8 @@ GLBCDefaultBackend is running at https://XX.XX.XX.XX/api/v1/namespaces/kube-syst
 ---
 
 ## Step 5 — Verify ArgoCD (Phase 4)
+
+> 📍 **Run from:** Your local machine terminal. `kubectl` commands work from any directory once credentials are configured (Step 4.1).
 
 ### 5.1 — Check ArgoCD pods are running
 
@@ -536,6 +590,8 @@ otel-demo-dev                 Synced        Progressing   # (deploying OTel demo
 ---
 
 ## Step 6 — Verify Platform Components
+
+> 📍 **Run from:** Your local machine terminal. All `kubectl` commands work from any directory.
 
 ### 6.1 — Check namespaces were created by ArgoCD
 
@@ -658,6 +714,8 @@ security       5m
 
 ## Step 7 — Verify OTel Demo (Phase 5)
 
+> 📍 **Run from:** Your local machine terminal. All commands work from any directory.
+
 ### 7.1 — Check OTel Demo pods
 
 ```bash
@@ -748,7 +806,10 @@ platform-docker  DOCKER  STANDARD_REPOSITORY  Private Docker registry for...   a
 
 ### 8.1 — Get WIF values from Terraform output
 
+> 📍 **Run from:** Your local machine terminal, inside `terraform/environments/dev/`.
+
 ```bash
+# Navigate to the dev Terraform environment
 cd terraform/environments/dev
 
 # Get the WIF provider path
@@ -796,6 +857,8 @@ Create these 3 environments exactly:
 ---
 
 ### 8.4 — Test CI workflow
+
+> 📍 **Run from:** Your local machine terminal, inside `gcp-platform-engineering/` (repo root).
 
 ```bash
 # Create a test branch
@@ -863,8 +926,12 @@ git push origin --delete test/verify-ci
 
 ### 9.1 — Deploy Stage
 
+> 📍 **Run from:** Your local machine terminal, inside `gcp-platform-engineering/` (repo root).
+
 ```bash
+# Navigate to the stage environment
 cd terraform/environments/stage
+
 terraform init
 terraform plan -out=stage.tfplan
 terraform apply stage.tfplan
@@ -874,7 +941,7 @@ terraform apply stage.tfplan
 
 After apply:
 ```bash
-# Connect to stage cluster
+# Connect to stage cluster (run from any directory — it's a gcloud command)
 gcloud container clusters get-credentials otel-stage-gke \
   --region asia-south1 --project ${GCP_PROJECT_ID}
 ```
@@ -883,20 +950,35 @@ gcloud container clusters get-credentials otel-stage-gke \
 
 ### 9.2 — Deploy Prod
 
+> 📍 **Run from:** Your local machine terminal, inside `gcp-platform-engineering/` (repo root).
+
 ```bash
+# Navigate to the prod environment
 cd terraform/environments/prod
+
 terraform init
 terraform plan -out=prod.tfplan
 terraform apply prod.tfplan
 ```
 
-> **Note:** Prod uses `enable_private_endpoint = true` — the API server is only accessible from within the VPC. You'll need Cloud Shell or an IAP tunnel for `kubectl` access in prod.
+> ⚠️ **Prod uses `enable_private_endpoint = true`** — the GKE API server is **not reachable from your laptop**. You CANNOT run `kubectl` against the prod cluster from your local machine.
+>
+> You must use **GCP Cloud Shell** (which runs inside Google's network) or configure an **IAP tunnel**.
 
-**Access prod cluster via Cloud Shell:**
+**Access prod cluster — use GCP Cloud Shell:**
+
+1. Go to [console.cloud.google.com](https://console.cloud.google.com)
+2. Click the **Cloud Shell** icon (top-right `>_` button) — a terminal opens in your browser
+3. Run the following in Cloud Shell:
+
 ```bash
-# In GCP Cloud Shell
+# Run these in GCP Cloud Shell (NOT your local terminal)
+gcloud config set project YOUR_GCP_PROJECT_ID
+
 gcloud container clusters get-credentials otel-prod-gke \
-  --region asia-south1 --project YOUR_PROJECT_ID
+  --region asia-south1 \
+  --project YOUR_GCP_PROJECT_ID
+
 kubectl get nodes
 ```
 
@@ -959,12 +1041,19 @@ CI/CD
 | **Total (dev+stage+prod)** | **~$480–810/month** | All 3 clusters |
 
 **💡 Cost tip — destroy when not in use:**
+
+> 📍 **Run from:** Your local machine terminal, inside `gcp-platform-engineering/`.
+
 ```bash
 # Destroy dev to stop billing
-cd terraform/environments/dev && terraform destroy
+cd terraform/environments/dev
+terraform destroy
 
-# Re-apply when needed (ArgoCD re-syncs everything from Git automatically)
+# Re-create when needed (move back to repo root first to re-create plan)
+cd terraform/environments/dev
+terraform plan -out=dev.tfplan
 terraform apply dev.tfplan
+# ArgoCD re-syncs everything from Git automatically after the cluster comes back up
 ```
 
 ---

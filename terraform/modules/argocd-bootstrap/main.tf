@@ -45,10 +45,34 @@ resource "helm_release" "argocd" {
 # This is the App of Apps entry point. ArgoCD watches gitops/bootstrap/
 # and discovers all child applications from there.
 # ─────────────────────────────────────────────────────────────────────────────
-resource "kubernetes_manifest" "root_application" {
-  manifest = yamldecode(templatefile("${path.module}/root-application.yaml", {
-    git_repo_url = var.git_repo_url
-  }))
+# kubernetes_manifest cannot be used here because it tries to connect to the
+# cluster during `terraform plan` — before the cluster exists.
+# null_resource + local-exec only runs during `terraform apply`, after the GKE
+# cluster and ArgoCD helm_release are fully up.
+resource "null_resource" "root_application" {
+  triggers = {
+    # Re-apply if the manifest template content changes
+    manifest_hash = sha256(templatefile("${path.module}/root-application.yaml", {
+      git_repo_url = var.git_repo_url
+    }))
+    cluster_endpoint = var.cluster_endpoint
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      # Authenticate kubectl to the GKE cluster
+      gcloud container clusters get-credentials ${var.cluster_name} \
+        --region=${var.cluster_region} \
+        --project=${var.project_id}
+
+      # Render and apply the root ArgoCD Application manifest
+      cat <<'MANIFEST' | kubectl apply -f -
+${templatefile("${path.module}/root-application.yaml", {
+  git_repo_url = var.git_repo_url
+})}
+MANIFEST
+    EOT
+  }
 
   depends_on = [helm_release.argocd]
 }
