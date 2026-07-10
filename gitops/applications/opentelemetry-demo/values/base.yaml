@@ -51,13 +51,13 @@ components:
   llm:
     enabled: false   # LLM assistant — requires GPU/API key setup
   product-reviews:
-    enabled: false   # Requires PostgreSQL — disabled for cost
+    enabled: false   # Requires PostgreSQL — disable until Phase 8 DB infra
+  # postgresql + product-catalog: re-enabled — nodes have ~55% CPU free
+  # after removing stage/prod. product-catalog v0.40.9 requires postgresql.
   postgresql:
-    enabled: false   # Heavy DB — product-reviews dependency, not needed
-  # product-catalog in v0.40.9 requires PostgreSQL (DB_CONNECTION_STRING env var).
-  # Disabled globally since postgresql is disabled. Re-enable both together in Phase 8.
+    enabled: true
   product-catalog:
-    enabled: false
+    enabled: true
 
 
   # ═══════════════════════════════════════════════════════════════════════════

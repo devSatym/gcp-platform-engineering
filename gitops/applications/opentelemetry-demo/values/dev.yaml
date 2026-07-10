@@ -24,11 +24,8 @@ components:
     replicas: 1
   payment:
     replicas: 1
-  # product-catalog in v0.40.9 requires PostgreSQL (DB_CONNECTION_STRING).
-  # We disabled postgresql to save resources → product-catalog cannot start.
-  # Re-enable both when dedicated DB infrastructure is provisioned (Phase 8).
   product-catalog:
-    enabled: false
+    replicas: 1
 
   # ─── Tier 2 — single replicas ─────────────────────────────────────────────
   email:
