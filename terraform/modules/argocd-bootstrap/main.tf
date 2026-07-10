@@ -60,8 +60,6 @@ resource "null_resource" "root_application" {
 
   provisioner "local-exec" {
     command = <<-EOT
-      set -e
-
       # Required by newer gcloud versions for kubectl auth
       export USE_GKE_GCLOUD_AUTH_PLUGIN=True
 
@@ -70,70 +68,29 @@ resource "null_resource" "root_application" {
         --region=${var.cluster_region} \
         --project=${var.project_id}
 
-      # ── Wait for the API server to be reachable ──────────────────────────────
-      # GKE clusters take ~30s after provisioning before the API server accepts
-      # connections. kubectl apply immediately after helm install can hit TLS
-      # handshake timeouts. This loop retries until kubectl can list namespaces.
-      echo "Waiting for Kubernetes API server to be ready..."
-      MAX_WAIT=300  # 5 minutes max
-      ELAPSED=0
-      until kubectl get namespaces --request-timeout=10s >/dev/null 2>&1; do
-        if [ $ELAPSED -ge $MAX_WAIT ]; then
-          echo "ERROR: API server did not become ready within $MAX_WAIT seconds"
-          exit 1
-        fi
-        echo "  API server not ready yet (${ELAPSED}s elapsed) — retrying in 15s..."
-        sleep 15
-        ELAPSED=$((ELAPSED + 15))
-      done
-      echo "API server is ready (${ELAPSED}s elapsed)."
-
-      # ── STEP 1: Apply AppProjects with retry ─────────────────────────────────
+      # STEP 1: Apply AppProjects FIRST (breaks the bootstrap chicken-and-egg).
       # ArgoCD rejects any Application whose project doesn't exist yet.
       # projects.yaml defines: platform, applications, observability, networking, security.
       echo "Applying ArgoCD AppProjects..."
-      RETRY=0
-      MAX_RETRIES=5
-      until kubectl apply --server-side --force-conflicts --validate=false \
-          -f "${path.module}/../../../gitops/bootstrap/projects.yaml"; do
-        RETRY=$((RETRY + 1))
-        if [ $RETRY -ge $MAX_RETRIES ]; then
-          echo "ERROR: Failed to apply AppProjects after $MAX_RETRIES attempts"
-          exit 1
-        fi
-        echo "  kubectl apply failed (attempt $RETRY/$MAX_RETRIES) — retrying in 10s..."
-        sleep 10
-      done
-      echo "AppProjects applied successfully."
-      echo "Waiting 5s for AppProjects to be registered..."
+      kubectl apply --server-side --force-conflicts --validate=false \
+        -f "${path.module}/../../../gitops/bootstrap/projects.yaml"
+      echo "Waiting for AppProjects to be registered..."
       sleep 5
 
-      # ── STEP 2: Apply the root Application (App of Apps) with retry ──────────
-      # Root app uses project: default (always exists in ArgoCD).
+      # STEP 2: Apply the root Application (App of Apps).
+      # Root app uses project: default (always exists). Child apps discovered
+      # by ArgoCD from gitops/bootstrap/ will reference their proper projects.
       echo "Applying root ArgoCD Application..."
-      RETRY=0
-      until cat <<'MANIFEST' | kubectl apply --validate=false -f -
+      cat <<'MANIFEST' | kubectl apply --validate=false -f -
 ${templatefile("${path.module}/root-application.yaml", {
   git_repo_url = var.git_repo_url
 })}
 MANIFEST
-      do
-        RETRY=$((RETRY + 1))
-        if [ $RETRY -ge $MAX_RETRIES ]; then
-          echo "ERROR: Failed to apply root Application after $MAX_RETRIES attempts"
-          exit 1
-        fi
-        echo "  kubectl apply failed (attempt $RETRY/$MAX_RETRIES) — retrying in 10s..."
-        sleep 10
-      done
-      echo "Root Application applied successfully."
     EOT
   }
 
   depends_on = [helm_release.argocd]
 }
-
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # WORKLOAD IDENTITY — ArgoCD K8s SA → GCP SA binding
