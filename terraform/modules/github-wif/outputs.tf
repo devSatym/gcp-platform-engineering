@@ -4,12 +4,12 @@
 
 output "workload_identity_provider" {
   description = "Full WIF provider resource name for use in google-github-actions/auth. Format: projects/{number}/locations/global/workloadIdentityPools/{pool}/providers/{provider}"
-  value       = google_iam_workload_identity_pool_provider.github.name
+  value       = local.wif_provider_name
 }
 
 output "workload_identity_pool_name" {
   description = "Full WIF pool resource name."
-  value       = google_iam_workload_identity_pool.github.name
+  value       = local.wif_pool_name
 }
 
 output "github_actions_sa_email" {

@@ -26,22 +26,42 @@
 #   GCP APIs  (Artifact Registry push, GKE get-credentials)
 # =============================================================================
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Workload Identity Pool
-# The pool is a container for all external identity providers.
-# One pool can have multiple providers (e.g., GitHub, CircleCI, GitLab).
-# ─────────────────────────────────────────────────────────────────────────────
-# ─────────────────────────────────────────────────────────────────────────────
-# PRE-CREATE LIFECYCLE: Handle GCP WIF soft-delete (30-day hold)
+# =============================================================================
+# WHY THIS USES GCLOUD NULL_RESOURCE INSTEAD OF TERRAFORM RESOURCES
+# =============================================================================
+# GCP does NOT hard-delete WIF pools/providers. terraform destroy calls the
+# delete API → GCP soft-deletes for 30 days. Next terraform apply sees them
+# not in state → tries CREATE → Error 409 (entity already exists).
 #
-# GCP does NOT support hard deletion of WIF pools/providers. When Terraform
-# destroys them, GCP soft-deletes them for 30 days. If you try to create a
-# pool/provider with the same ID within 30 days, GCP returns Error 409.
+# The previous approach (null_resource restore + google_iam_workload_identity_pool
+# resource) failed because:
+#   1. null_resource undeletes pool (ACTIVE again)
+#   2. google_iam_workload_identity_pool calls CREATE anyway (not in state)
+#   3. GCP returns 409
 #
-# This null_resource runs BEFORE the WIF pool is created and automatically
-# undeletes it if it's in DELETED state — making destroy/apply cycles clean.
+# Fix: Manage pool/provider ENTIRELY via gcloud (create/undelete/noop).
+# Never use a Terraform-managed resource for them — no resource = no 409.
+# Compute pool/provider resource names from known GCP naming patterns.
+# data.google_project gives us the numeric project ID for the name.
+# =============================================================================
+
+# Get numeric project ID — needed to build the WIF resource name strings.
+# Format: projects/{NUMBER}/locations/global/workloadIdentityPools/{pool_id}
+data "google_project" "project" {
+  project_id = var.project_id
+}
+
+locals {
+  wif_pool_name     = "projects/${data.google_project.project.number}/locations/global/workloadIdentityPools/github-pool"
+  wif_provider_name = "${local.wif_pool_name}/providers/github-provider"
+}
+
 # ─────────────────────────────────────────────────────────────────────────────
-resource "null_resource" "wif_pool_restore" {
+# WIF Pool — fully idempotent via gcloud
+# Runs on every apply. Handles all 3 states: ACTIVE (noop), DELETED (undelete),
+# NOT_FOUND (create). No Terraform resource → no 409 ever.
+# ─────────────────────────────────────────────────────────────────────────────
+resource "null_resource" "wif_pool" {
   triggers = {
     pool_id    = "github-pool"
     project_id = var.project_id
@@ -56,28 +76,36 @@ resource "null_resource" "wif_pool_restore" {
 
       echo "WIF pool state: $POOL_STATE"
 
-      if [ "$POOL_STATE" = "DELETED" ]; then
-        echo "Pool is soft-deleted — undeleting automatically..."
+      if [ "$POOL_STATE" = "ACTIVE" ]; then
+        echo "Pool already ACTIVE — nothing to do."
+      elif [ "$POOL_STATE" = "DELETED" ]; then
+        echo "Pool soft-deleted — undeleting..."
         gcloud iam workload-identity-pools undelete github-pool \
-          --location=global \
-          --project=${var.project_id}
-        # Wait for the undelete operation to propagate
-        sleep 10
+          --location=global --project=${var.project_id}
+        sleep 15
         echo "Pool restored."
-      elif [ "$POOL_STATE" = "ACTIVE" ]; then
-        echo "Pool is already active — skipping undelete."
       else
-        echo "Pool does not exist yet — Terraform will create it."
+        echo "Pool not found — creating..."
+        gcloud iam workload-identity-pools create github-pool \
+          --location=global \
+          --project=${var.project_id} \
+          --display-name="GitHub Actions Pool"
+        sleep 10
+        echo "Pool created."
       fi
     EOT
   }
 }
 
-resource "null_resource" "wif_provider_restore" {
+# ─────────────────────────────────────────────────────────────────────────────
+# WIF Provider — fully idempotent via gcloud
+# ─────────────────────────────────────────────────────────────────────────────
+resource "null_resource" "wif_provider" {
   triggers = {
     pool_id     = "github-pool"
     provider_id = "github-provider"
     project_id  = var.project_id
+    github_repo = var.github_repo
   }
 
   provisioner "local-exec" {
@@ -90,81 +118,44 @@ resource "null_resource" "wif_provider_restore" {
 
       echo "WIF provider state: $PROVIDER_STATE"
 
-      if [ "$PROVIDER_STATE" = "DELETED" ]; then
-        echo "Provider is soft-deleted — undeleting automatically..."
+      if [ "$PROVIDER_STATE" = "ACTIVE" ]; then
+        echo "Provider already ACTIVE — nothing to do."
+      elif [ "$PROVIDER_STATE" = "DELETED" ]; then
+        echo "Provider soft-deleted — undeleting..."
         gcloud iam workload-identity-pools providers undelete github-provider \
           --workload-identity-pool=github-pool \
-          --location=global \
-          --project=${var.project_id}
-        sleep 10
+          --location=global --project=${var.project_id}
+        sleep 15
         echo "Provider restored."
-      elif [ "$PROVIDER_STATE" = "ACTIVE" ]; then
-        echo "Provider is already active — skipping undelete."
       else
-        echo "Provider does not exist yet — Terraform will create it."
+        echo "Provider not found — creating..."
+        gcloud iam workload-identity-pools providers create-oidc github-provider \
+          --workload-identity-pool=github-pool \
+          --location=global \
+          --project=${var.project_id} \
+          --display-name="GitHub OIDC Provider" \
+          --issuer-uri="https://token.actions.githubusercontent.com" \
+          --attribute-mapping="google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.repository=assertion.repository,attribute.repository_owner=assertion.repository_owner,attribute.workflow=assertion.workflow,attribute.ref=assertion.ref" \
+          --attribute-condition="assertion.repository == '${var.github_repo}'"
+        sleep 10
+        echo "Provider created."
       fi
     EOT
   }
 
-  depends_on = [null_resource.wif_pool_restore]
-}
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Workload Identity Pool
-# The pool is a container for all external identity providers.
-# One pool can have multiple providers (e.g., GitHub, CircleCI, GitLab).
-# ─────────────────────────────────────────────────────────────────────────────
-resource "google_iam_workload_identity_pool" "github" {
-  project                   = var.project_id
-  workload_identity_pool_id = "github-pool"
-  display_name              = "GitHub Actions Pool"
-  description               = "Workload Identity Pool for GitHub Actions CI/CD pipelines"
-  disabled                  = false
-
-  depends_on = [null_resource.wif_pool_restore]
-}
-
-# ─────────────────────────────────────────────────────────────────────────────
-# OIDC Provider — GitHub
-# Registers GitHub as a trusted OIDC identity provider in the pool.
-# ─────────────────────────────────────────────────────────────────────────────
-resource "google_iam_workload_identity_pool_provider" "github" {
-  project                            = var.project_id
-  workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
-  workload_identity_pool_provider_id = "github-provider"
-  display_name                       = "GitHub OIDC Provider"
-  description                        = "OIDC provider for GitHub Actions"
-
-  # Attribute mapping: maps JWT claims from GitHub's OIDC token to
-  # Google Cloud attributes. These become usable in attribute_condition.
-  attribute_mapping = {
-    "google.subject"             = "assertion.sub"
-    "attribute.actor"            = "assertion.actor"
-    "attribute.repository"       = "assertion.repository"
-    "attribute.repository_owner" = "assertion.repository_owner"
-    "attribute.workflow"         = "assertion.workflow"
-    "attribute.ref"              = "assertion.ref"
-  }
-
-  # Security: restrict to ONLY the specified GitHub repository.
-  # Without this condition, ANY GitHub user could potentially authenticate.
-  attribute_condition = "assertion.repository == '${var.github_repo}'"
-
-  oidc {
-    issuer_uri = "https://token.actions.githubusercontent.com"
-  }
-
-  depends_on = [null_resource.wif_provider_restore]
+  depends_on = [null_resource.wif_pool]
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
 # IAM Binding — WIF Principal → sa-github-actions
-# Allows the GitHub Actions pool to impersonate the sa-github-actions SA.
+# Uses the computed pool name (from project number) — no resource reference needed.
 # ─────────────────────────────────────────────────────────────────────────────
 resource "google_service_account_iam_member" "github_wif_binding" {
   service_account_id = "projects/${var.project_id}/serviceAccounts/${var.github_actions_sa_email}"
   role               = "roles/iam.workloadIdentityUser"
 
-  member = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.github_repo}"
+  member = "principalSet://iam.googleapis.com/${local.wif_pool_name}/attribute.repository/${var.github_repo}"
+
+  depends_on = [null_resource.wif_provider]
 }
 

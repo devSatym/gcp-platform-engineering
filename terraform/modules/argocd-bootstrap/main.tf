@@ -68,6 +68,12 @@ resource "null_resource" "root_application" {
         --region=${var.cluster_region} \
         --project=${var.project_id}
 
+      # Wait for the GKE API server to fully accept connections.
+      # The cluster endpoint takes ~30s after Helm install before it reliably
+      # responds to kubectl — this prevents TLS handshake timeout errors.
+      echo "Waiting 30s for Kubernetes API server to be ready..."
+      sleep 30
+
       # STEP 1: Apply AppProjects FIRST (breaks the bootstrap chicken-and-egg).
       # ArgoCD rejects any Application whose project doesn't exist yet.
       # projects.yaml defines: platform, applications, observability, networking, security.
