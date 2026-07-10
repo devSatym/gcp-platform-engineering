@@ -68,9 +68,18 @@ resource "null_resource" "root_application" {
         --region=${var.cluster_region} \
         --project=${var.project_id}
 
-      # Render and apply the root ArgoCD Application manifest
-      # --validate=false: skips server-side schema validation which requires
-      # gke-gcloud-auth-plugin. The manifest itself is valid YAML.
+      # STEP 1: Apply AppProjects FIRST (breaks the bootstrap chicken-and-egg).
+      # ArgoCD rejects any Application whose project doesn't exist yet.
+      # projects.yaml defines: platform, applications, observability, networking, security.
+      echo "Applying ArgoCD AppProjects..."
+      kubectl apply --validate=false -f "${path.module}/../../../gitops/bootstrap/projects.yaml"
+      echo "Waiting for AppProjects to be registered..."
+      sleep 5
+
+      # STEP 2: Apply the root Application (App of Apps).
+      # Root app uses project: default (always exists). Child apps discovered
+      # by ArgoCD from gitops/bootstrap/ will reference their proper projects.
+      echo "Applying root ArgoCD Application..."
       cat <<'MANIFEST' | kubectl apply --validate=false -f -
 ${templatefile("${path.module}/root-application.yaml", {
   git_repo_url = var.git_repo_url
