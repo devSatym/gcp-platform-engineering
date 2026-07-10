@@ -44,7 +44,7 @@ spec:
     spec:
       project: platform
       source:
-        repoURL: "https://github.com/YOUR_USERNAME/project-2.git"  # UPDATE THIS
+        repoURL: "https://github.com/devSatym/gcp-platform-engineering.git"  # UPDATE THIS
         targetRevision: main
         path: gitops/platform
       destination:

@@ -67,7 +67,7 @@ spec:
               - $values/gitops/applications/opentelemetry-demo/values/{{env}}.yaml
 
         # Source 2: Our monorepo provides the values files above
-        - repoURL: "https://github.com/YOUR_USERNAME/project-2.git"  # UPDATE THIS
+        - repoURL: "https://github.com/devSatym/gcp-platform-engineering.git"  # UPDATE THIS
           targetRevision: main
           ref: values   # Declares this source as a $values reference
 

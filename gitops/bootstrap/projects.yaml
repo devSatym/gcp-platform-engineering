@@ -30,7 +30,7 @@ spec:
   description: "Platform system components (ESO, metrics-server, cert-manager)"
 
   sourceRepos:
-    - "https://github.com/YOUR_USERNAME/project-2.git"  # UPDATE THIS
+    - "https://github.com/devSatym/gcp-platform-engineering.git"  # UPDATE THIS
     - "https://charts.external-secrets.io"
     - "https://kubernetes-sigs.github.io/metrics-server"
     - "https://charts.jetstack.io"
@@ -73,7 +73,7 @@ spec:
   description: "Business applications (OTel Demo, future workloads)"
 
   sourceRepos:
-    - "https://github.com/YOUR_USERNAME/project-2.git"  # UPDATE THIS
+    - "https://github.com/devSatym/gcp-platform-engineering.git"  # UPDATE THIS
     - "https://open-telemetry.github.io/opentelemetry-helm-charts"
 
   destinations:
@@ -119,7 +119,7 @@ spec:
   description: "Observability stack (Prometheus, Grafana, Loki, OTel Collector)"
 
   sourceRepos:
-    - "https://github.com/YOUR_USERNAME/project-2.git"  # UPDATE THIS
+    - "https://github.com/devSatym/gcp-platform-engineering.git"  # UPDATE THIS
     - "https://prometheus-community.github.io/helm-charts"
     - "https://grafana.github.io/helm-charts"
     - "https://open-telemetry.github.io/opentelemetry-helm-charts"
@@ -158,7 +158,7 @@ spec:
   description: "Networking (Istio, Gateway API, ingress config)"
 
   sourceRepos:
-    - "https://github.com/YOUR_USERNAME/project-2.git"  # UPDATE THIS
+    - "https://github.com/devSatym/gcp-platform-engineering.git"  # UPDATE THIS
     - "https://istio-release.storage.googleapis.com/charts"
 
   destinations:
@@ -199,7 +199,7 @@ spec:
   description: "Security components (Kyverno, Falco, policy enforcement)"
 
   sourceRepos:
-    - "https://github.com/YOUR_USERNAME/project-2.git"  # UPDATE THIS
+    - "https://github.com/devSatym/gcp-platform-engineering.git"  # UPDATE THIS
     - "https://kyverno.github.io/kyverno"
     - "https://falcosecurity.github.io/charts"
 

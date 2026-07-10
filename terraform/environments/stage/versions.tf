@@ -1,5 +1,5 @@
 # =============================================================================
-# environments/dev/versions.tf
+# environments/stage/versions.tf
 # =============================================================================
 
 terraform {
@@ -13,6 +13,15 @@ terraform {
     google-beta = {
       source  = "hashicorp/google-beta"
       version = "~> 5.0"
+    }
+    # Required by the argocd-bootstrap child module (helm_release + kubernetes_manifest)
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.12"
+    }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.27"
     }
   }
 }

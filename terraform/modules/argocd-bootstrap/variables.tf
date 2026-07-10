@@ -53,7 +53,8 @@ variable "argocd_chart_version" {
 }
 
 variable "git_repo_url" {
-  description = "HTTPS URL of the Git monorepo ArgoCD will watch. Update to your actual GitHub repo URL."
+  description = "HTTPS URL of the Git monorepo ArgoCD will watch. Example: https://github.com/owner/repo.git"
   type        = string
-  default     = "https://github.com/YOUR_USERNAME/project-2.git"
+  # No default — must be set explicitly in every environment's main.tf.
+  # If not set, Terraform will error at plan time (safer than a bad default).
 }

@@ -63,7 +63,7 @@ resource "google_container_cluster" "primary" {
   # Replaces kube-proxy and iptables with eBPF (Cilium-based).
   # Benefits: better network policy performance, lower latency, richer observability.
   # ADVANCED_DATAPATH_V2 enables Network Policies automatically.
-  datapath_provider = "ADVANCED_DATAPATH_V2"
+  datapath_provider = "ADVANCED_DATAPATH"
 
   # Network policy is implicitly enabled by Dataplane V2.
   # Explicit declaration for documentation clarity.
@@ -173,10 +173,8 @@ resource "google_container_cluster" "primary" {
       disabled = false
     }
 
-    # GKE Dashboard — disabled (use Cloud Console instead).
-    kubernetes_dashboard {
-      disabled = true
-    }
+    # GKE Dashboard — kubernetes_dashboard addon was removed in provider v5+.
+    # Use Cloud Console for cluster monitoring instead.
 
     # Network Policy — handled by Dataplane V2, not this addon.
     network_policy_config {

@@ -1,0 +1,81 @@
+# =============================================================================
+# .gitignore — gcp-platform-engineering
+# =============================================================================
+
+# ─── Terraform ───────────────────────────────────────────────────────────────
+# Local terraform working directory (downloaded providers, modules)
+**/.terraform/
+**/.terraform.lock.hcl
+
+# Terraform plan files (may contain sensitive data)
+*.tfplan
+plan.tfplan
+plan-output.txt
+
+# Terraform variable files with actual values (should never be committed)
+*.auto.tfvars
+# Note: terraform.tfvars IS committed in this repo (no secrets, only project IDs)
+
+# Terraform state (never commit state files — use remote state in GCS)
+*.tfstate
+*.tfstate.backup
+*.tfstate.lock.info
+
+# Terraform crash logs
+crash.log
+crash.*.log
+
+# Override files (local dev overrides)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# ─── Secrets & Credentials ───────────────────────────────────────────────────
+# Service account JSON keys (should never be committed)
+*.json.key
+*-key.json
+sa-*.json
+credentials.json
+service-account*.json
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# ─── IDE & Editor ────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ─── OS ──────────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# ─── Node / Tooling ──────────────────────────────────────────────────────────
+node_modules/
+.npm/
+
+# ─── Helm ────────────────────────────────────────────────────────────────────
+*.tgz
+charts/
+
+# ─── CI / Build outputs ──────────────────────────────────────────────────────
+checkov-results.sarif
+trivy-results.sarif
+sbom.*.json
+cosign.bundle
+*.sbom
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+*.log
+logs/

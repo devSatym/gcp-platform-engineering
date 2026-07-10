@@ -141,10 +141,11 @@ module "argocd_bootstrap" {
   argocd_sa_email           = module.service_accounts.argocd_sa_email
   external_secrets_sa_email = module.service_accounts.external_secrets_sa_email
 
-  # !! UPDATE THIS to your actual GitHub repo URL !!
-  git_repo_url = "https://github.com/YOUR_USERNAME/project-2.git"
+  git_repo_url = "https://github.com/devSatym/gcp-platform-engineering.git"
 
-  depends_on = [module.gke]
+  # NOTE: No explicit depends_on — the argocd-bootstrap module has internal
+  # helm/kubernetes providers which makes depends_on incompatible (Terraform error).
+  # Terraform infers the dependency automatically from the cluster_* input variables.
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -172,8 +173,7 @@ module "github_wif" {
   source = "../../modules/github-wif"
 
   project_id              = var.project_id
-  # !! UPDATE THIS to your GitHub repo in owner/repo format !!
-  github_repo             = "YOUR_USERNAME/project-2"
+  github_repo             = "devSatym/gcp-platform-engineering"
   github_actions_sa_email = module.service_accounts.github_actions_sa_email
 
   depends_on = [module.project]
