@@ -72,7 +72,8 @@ resource "null_resource" "root_application" {
       # ArgoCD rejects any Application whose project doesn't exist yet.
       # projects.yaml defines: platform, applications, observability, networking, security.
       echo "Applying ArgoCD AppProjects..."
-      kubectl apply --validate=false -f "${path.module}/../../../gitops/bootstrap/projects.yaml"
+      kubectl apply --server-side --force-conflicts --validate=false \
+        -f "${path.module}/../../../gitops/bootstrap/projects.yaml"
       echo "Waiting for AppProjects to be registered..."
       sleep 5
 
