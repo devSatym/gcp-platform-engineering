@@ -66,6 +66,9 @@ spec:
     # ArgoCD nested apps — gitops/platform/ contains Application manifests
     - group: "argoproj.io"
       kind: Application
+    # metrics-server registers itself via API aggregation (v1beta1.metrics.k8s.io)
+    - group: "apiregistration.k8s.io"
+      kind: APIService
 
   namespaceResourceWhitelist:
     - group: "*"
