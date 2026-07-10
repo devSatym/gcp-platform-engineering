@@ -46,8 +46,10 @@ default:
 #
 # Components added in v0.40.9 not used in our setup — disable explicitly:
 components:
+  # image-provider: lightweight nginx static file server — serves ALL product images
+  # Without it every product card shows a blank grey box on the storefront
   image-provider:
-    enabled: false   # Static image server — not needed for our demo
+    enabled: true
   llm:
     enabled: false   # LLM assistant — requires GPU/API key setup
   product-reviews:
