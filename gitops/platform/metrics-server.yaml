@@ -69,9 +69,23 @@ spec:
       selfHeal: true
     syncOptions:
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
     retry:
       limit: 3
       backoff:
         duration: 5s
         factor: 2
         maxDuration: 1m
+
+  # Prevents ComparisonError: ".status.terminatingReplicas: field not declared in schema"
+  # Also skips APIService status which GKE manages independently.
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /status
+    - group: apiregistration.k8s.io
+      kind: APIService
+      jsonPointers:
+        - /status
+
