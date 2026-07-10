@@ -40,9 +40,21 @@ default:
       value: "deployment.environment=$(DEPLOYMENT_ENV),k8s.cluster.name=$(CLUSTER_NAME)"
 
 # ─── Components ───────────────────────────────────────────────────────────────
-# All component names use kebab-case as required by the chart schema.
-# See: https://github.com/open-telemetry/opentelemetry-helm-charts/blob/main/charts/opentelemetry-demo/values.schema.json
+# All component names use kebab-case as required by the chart schema (v0.40.9+).
+# Chart: https://open-telemetry.github.io/opentelemetry-helm-charts
+# Version: 0.40.9 (see applications-appset.yaml)
+#
+# Components added in v0.40.9 not used in our setup — disable explicitly:
 components:
+  image-provider:
+    enabled: false   # Static image server — not needed for our demo
+  llm:
+    enabled: false   # LLM assistant — requires GPU/API key setup
+  product-reviews:
+    enabled: false   # Requires PostgreSQL — disabled for cost
+  postgresql:
+    enabled: false   # Heavy DB — product-reviews dependency, not needed
+
 
   # ═══════════════════════════════════════════════════════════════════════════
   # TIER 1 — Critical Business Services

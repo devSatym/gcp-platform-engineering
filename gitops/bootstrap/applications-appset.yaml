@@ -31,13 +31,13 @@ spec:
         elements:
           - env: dev
             server: https://kubernetes.default.svc
-            chartVersion: "0.32.8"
+            chartVersion: "0.40.9"
           - env: stage
             server: https://kubernetes.default.svc
-            chartVersion: "0.32.8"
+            chartVersion: "0.40.9"
           - env: prod
             server: https://kubernetes.default.svc
-            chartVersion: "0.32.8"
+            chartVersion: "0.40.9"
 
   # ─── Template ───────────────────────────────────────────────────────────────
   template:

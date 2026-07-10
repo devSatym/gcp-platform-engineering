@@ -44,25 +44,28 @@ spec:
       server: https://kubernetes.default.svc
 
   clusterResourceWhitelist:
-    - group: "apiextensions.k8s.io"
-      kind: CustomResourceDefinition
+    # Core RBAC — required by all Helm charts
     - group: "rbac.authorization.k8s.io"
       kind: ClusterRole
     - group: "rbac.authorization.k8s.io"
       kind: ClusterRoleBinding
+    # CRDs — ESO installs 16 CRDs for SecretStore, ExternalSecret, etc.
+    - group: "apiextensions.k8s.io"
+      kind: CustomResourceDefinition
+    # Namespace creation
     - group: ""
       kind: Namespace
-    # priority-classes.yaml — cluster-scoped, required for OTel demo tier scheduling
+    # PriorityClasses — defined in priority-classes.yaml, cluster-scoped
     - group: "scheduling.k8s.io"
       kind: PriorityClass
-    # gitops/platform/ contains ArgoCD Application manifests (nested apps pattern)
-    - group: "argoproj.io"
-      kind: Application
-    # External Secrets Operator installs admission webhooks as cluster-scoped resources
+    # Admission webhooks — ESO installs ValidatingWebhookConfigurations
     - group: "admissionregistration.k8s.io"
       kind: ValidatingWebhookConfiguration
     - group: "admissionregistration.k8s.io"
       kind: MutatingWebhookConfiguration
+    # ArgoCD nested apps — gitops/platform/ contains Application manifests
+    - group: "argoproj.io"
+      kind: Application
 
   namespaceResourceWhitelist:
     - group: "*"
@@ -101,12 +104,18 @@ spec:
       server: https://kubernetes.default.svc
 
   clusterResourceWhitelist:
+    # Core RBAC — required by all Helm charts
     - group: "rbac.authorization.k8s.io"
       kind: ClusterRole
     - group: "rbac.authorization.k8s.io"
       kind: ClusterRoleBinding
+    # CRDs — OTel collector installs CRDs
+    - group: "apiextensions.k8s.io"
+      kind: CustomResourceDefinition
+    # Namespace creation
     - group: ""
       kind: Namespace
+    # PriorityClass — referenced by OTel demo pods
     - group: "scheduling.k8s.io"
       kind: PriorityClass
 
