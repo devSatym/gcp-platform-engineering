@@ -7,8 +7,6 @@
 # Key characteristics:
 #   - 3 replicas for Tier 1 (one per zone — zone HA)
 #   - Pod anti-affinity to spread replicas across zones
-#   - Topology spread constraints (zone balancing)
-#   - PodDisruptionBudgets (minAvailable: 2 for 3-replica services)
 #   - Load generator DISABLED — enable only for controlled production tests
 #   - Full persistence for Prometheus and Grafana
 #   - Warning/Error log level only
@@ -16,19 +14,16 @@
 
 components:
   # ═══════════════════════════════════════════════════════════════════════════
-  # TIER 1 — 3 replicas with zone spread and PDBs
+  # TIER 1 — 3 replicas with zone spread
   # ═══════════════════════════════════════════════════════════════════════════
 
   frontend:
     replicas: 3
-    podDisruptionBudget:
-      minAvailable: 2    # Allow only 1 pod down during rolling update
     schedulingRules:
       nodeSelector:
         workload: general
       affinity:
         podAntiAffinity:
-          # Prefer (not require) spreading across zones — if zone capacity allows
           preferredDuringSchedulingIgnoredDuringExecution:
             - weight: 100
               podAffinityTerm:
@@ -36,73 +31,47 @@ components:
                 labelSelector:
                   matchLabels:
                     app.kubernetes.io/component: frontend
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: topology.kubernetes.io/zone
-          whenUnsatisfiable: ScheduleAnyway  # Soft constraint — don't block scheduling
-          labelSelector:
-            matchLabels:
-              app.kubernetes.io/component: frontend
 
-  frontendProxy:
+  frontend-proxy:
     replicas: 3
-    podDisruptionBudget:
-      minAvailable: 2
     schedulingRules:
       nodeSelector:
         workload: general
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: topology.kubernetes.io/zone
-          whenUnsatisfiable: ScheduleAnyway
 
-  cartService:
+  cart:
     replicas: 3
-    podDisruptionBudget:
-      minAvailable: 2
 
-  checkoutService:
+  checkout:
     replicas: 3
-    podDisruptionBudget:
-      minAvailable: 2
 
-  paymentService:
+  payment:
     replicas: 3
-    podDisruptionBudget:
-      minAvailable: 2
-    # Payment service: even stricter — require zone spread
     schedulingRules:
       nodeSelector:
         workload: general
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: topology.kubernetes.io/zone
-          whenUnsatisfiable: DoNotSchedule  # Hard constraint for payment
 
-  productCatalogService:
+  product-catalog:
     replicas: 3
-    podDisruptionBudget:
-      minAvailable: 2
 
   # ═══════════════════════════════════════════════════════════════════════════
   # TIER 2 — 2 replicas for basic HA (tolerate 1 failure)
   # ═══════════════════════════════════════════════════════════════════════════
 
-  emailService:
+  email:
     replicas: 2
-  recommendationService:
+  recommendation:
     replicas: 2
-  currencyService:
+  currency:
     replicas: 2
-  shippingService:
+  shipping:
     replicas: 2
-  adService:
+  ad:
     replicas: 2
-  accountingService:
+  accounting:
     replicas: 2
-  frauddetectionService:
+  fraud-detection:
     replicas: 2
-  quoteService:
+  quote:
     replicas: 2
 
   # Tier 3 — platform
@@ -114,17 +83,15 @@ components:
   # Enable explicitly for controlled load tests only
   # ═══════════════════════════════════════════════════════════════════════════
 
-  loadgenerator:
-    enabled: false   # Re-enable with specific config for load tests
+  load-generator:
+    enabled: false
 
   # ═══════════════════════════════════════════════════════════════════════════
   # DATA STORES — HA configuration
   # ═══════════════════════════════════════════════════════════════════════════
 
-  valkey:
+  valkey-cart:
     replicas: 1  # Upstream demo uses single Valkey — Phase 8 considers Redis Sentinel
-    podDisruptionBudget:
-      minAvailable: 1
 
   kafka:
     replicas: 1  # Single-node for cost control — Phase 8 considers multi-broker

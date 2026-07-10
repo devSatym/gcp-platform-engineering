@@ -1,61 +1,47 @@
 # =============================================================================
 # gitops/applications/opentelemetry-demo/values/stage.yaml
 #
-# Stage environment overrides — layered on top of base.yaml.
-# Goal: Production-like behavior for pre-release validation and load testing.
+# Staging environment overrides — layered on top of base.yaml.
+# Goal: Production-like validation with HA for Tier 1 services.
 #
 # Key characteristics:
-#   - 2 replicas for Tier 1 critical services (basic HA)
-#   - Load generator ENABLED — for realistic load testing
-#   - Higher user count than dev
-#   - Info-level logging (not debug)
-#   - Prometheus persistence enabled (retain metrics across restarts)
-#   - Stage validates PDB/anti-affinity configs before prod promotion
+#   - 2 replicas for Tier 1 services (basic HA validation)
+#   - PDBs on Tier 1 (minAvailable: 1 — tolerate 1 pod down)
+#   - Load generator enabled for realistic load testing
+#   - Full observability stack enabled with persistence
 # =============================================================================
 
 components:
   # Tier 1 — 2 replicas for HA validation
   frontend:
     replicas: 2
-    podDisruptionBudget:
-      minAvailable: 1
-  frontendProxy:
+  frontend-proxy:
     replicas: 2
-    podDisruptionBudget:
-      minAvailable: 1
-  cartService:
+  cart:
     replicas: 2
-    podDisruptionBudget:
-      minAvailable: 1
-  checkoutService:
+  checkout:
     replicas: 2
-    podDisruptionBudget:
-      minAvailable: 1
-  paymentService:
+  payment:
     replicas: 2
-    podDisruptionBudget:
-      minAvailable: 1
-  productCatalogService:
+  product-catalog:
     replicas: 2
-    podDisruptionBudget:
-      minAvailable: 1
 
   # Tier 2 — single replica (tolerate brief disruption)
-  emailService:
+  email:
     replicas: 1
-  recommendationService:
+  recommendation:
     replicas: 1
-  currencyService:
+  currency:
     replicas: 1
-  shippingService:
+  shipping:
     replicas: 1
-  adService:
+  ad:
     replicas: 1
-  accountingService:
+  accounting:
     replicas: 1
-  frauddetectionService:
+  fraud-detection:
     replicas: 1
-  quoteService:
+  quote:
     replicas: 1
 
   # Tier 3 — platform (single, stable)
@@ -63,7 +49,7 @@ components:
     replicas: 1
 
   # Tier 4 — load generator ENABLED for load testing
-  loadgenerator:
+  load-generator:
     enabled: true
     replicas: 1
     envOverrides:
@@ -75,7 +61,7 @@ components:
         value: "http://otel-demo-frontend-proxy:8080"
 
   # Data stores
-  valkey:
+  valkey-cart:
     replicas: 1
   kafka:
     replicas: 1

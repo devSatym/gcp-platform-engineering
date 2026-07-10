@@ -18,39 +18,38 @@ components:
   # Tier 1 — single replicas in dev
   frontend:
     replicas: 1
-  frontendProxy:
+  frontend-proxy:
     replicas: 1
-  cartService:
+  cart:
     replicas: 1
-  checkoutService:
+  checkout:
     replicas: 1
-  paymentService:
+  payment:
     replicas: 1
-  productCatalogService:
+  product-catalog:
     replicas: 1
 
   # Tier 2 — single replicas
-  emailService:
+  email:
     replicas: 1
-  recommendationService:
+  recommendation:
     replicas: 1
-  currencyService:
+  currency:
     replicas: 1
-  shippingService:
+  shipping:
     replicas: 1
-  adService:
+  ad:
     replicas: 1
-  accountingService:
+  accounting:
     replicas: 1
-  frauddetectionService:
+  fraud-detection:
     replicas: 1
-  quoteService:
+  quote:
     replicas: 1
 
   # Tier 3 — platform
   flagd:
     replicas: 1
-    # Enable experimental feature flags in dev
     envOverrides:
       - name: FLAGD_LOG_LEVEL
         value: debug
@@ -58,7 +57,7 @@ components:
         value: otel
 
   # Tier 4 — load generator ENABLED in dev
-  loadgenerator:
+  load-generator:
     enabled: true
     replicas: 1
     envOverrides:
@@ -70,7 +69,7 @@ components:
         value: "http://otel-demo-frontend-proxy:8080"
 
   # Data stores
-  valkey:
+  valkey-cart:
     replicas: 1
   kafka:
     replicas: 1

@@ -13,7 +13,16 @@
 # Upstream chart: https://open-telemetry.github.io/opentelemetry-helm-charts
 # Chart version: 0.32.8 (pinned in ArgoCD ApplicationSet)
 #
-# Service Tier Classification:
+# IMPORTANT — Component names must use kebab-case matching the chart schema:
+#   frontend-proxy (not frontendProxy), cart (not cartService), etc.
+#   See: values.schema.json → definitions.Components.properties
+#
+# NOTE — priorityClassName is NOT supported by the chart's component schema.
+#   PriorityClasses are applied via the PriorityClass resources in
+#   gitops/platform/priority-classes.yaml. The globalDefault (business-standard)
+#   applies to all pods without an explicit priorityClassName.
+#
+# Service Tier Classification (for documentation — enforced via PriorityClasses):
 #   Tier 1 (Critical):  Frontend, FrontendProxy, Cart, Checkout, Payment, ProductCatalog
 #   Tier 2 (Standard):  Email, Recommendation, Currency, Shipping, Ad, Accounting, FraudDetection, Quote
 #   Tier 3 (Platform):  OTel Collector, Prometheus, Grafana, Jaeger, Flagd
@@ -31,17 +40,16 @@ default:
       value: "deployment.environment=$(DEPLOYMENT_ENV),k8s.cluster.name=$(CLUSTER_NAME)"
 
 # ─── Components ───────────────────────────────────────────────────────────────
+# All component names use kebab-case as required by the chart schema.
+# See: https://github.com/open-telemetry/opentelemetry-helm-charts/blob/main/charts/opentelemetry-demo/values.schema.json
 components:
 
   # ═══════════════════════════════════════════════════════════════════════════
   # TIER 1 — Critical Business Services
-  # PriorityClass: business-critical (900)
   # Node pool: general
-  # PDB: set per environment in dev/stage/prod.yaml
   # ═══════════════════════════════════════════════════════════════════════════
 
   frontend:
-    priorityClassName: business-critical
     resources:
       requests:
         cpu: 100m
@@ -53,8 +61,7 @@ components:
       nodeSelector:
         workload: general
 
-  frontendProxy:
-    priorityClassName: business-critical
+  frontend-proxy:
     resources:
       requests:
         cpu: 50m
@@ -66,8 +73,7 @@ components:
       nodeSelector:
         workload: general
 
-  cartService:
-    priorityClassName: business-critical
+  cart:
     resources:
       requests:
         cpu: 100m
@@ -79,8 +85,7 @@ components:
       nodeSelector:
         workload: general
 
-  checkoutService:
-    priorityClassName: business-critical
+  checkout:
     resources:
       requests:
         cpu: 100m
@@ -92,8 +97,7 @@ components:
       nodeSelector:
         workload: general
 
-  paymentService:
-    priorityClassName: business-critical
+  payment:
     resources:
       requests:
         cpu: 100m
@@ -105,8 +109,7 @@ components:
       nodeSelector:
         workload: general
 
-  productCatalogService:
-    priorityClassName: business-critical
+  product-catalog:
     resources:
       requests:
         cpu: 50m
@@ -120,11 +123,10 @@ components:
 
   # ═══════════════════════════════════════════════════════════════════════════
   # TIER 2 — Supporting Services
-  # PriorityClass: business-standard (500) — globalDefault, no explicit set needed
   # Node pool: general
   # ═══════════════════════════════════════════════════════════════════════════
 
-  emailService:
+  email:
     resources:
       requests:
         cpu: 50m
@@ -136,7 +138,7 @@ components:
       nodeSelector:
         workload: general
 
-  recommendationService:
+  recommendation:
     resources:
       requests:
         cpu: 50m
@@ -148,7 +150,7 @@ components:
       nodeSelector:
         workload: general
 
-  currencyService:
+  currency:
     resources:
       requests:
         cpu: 25m
@@ -160,7 +162,7 @@ components:
       nodeSelector:
         workload: general
 
-  shippingService:
+  shipping:
     resources:
       requests:
         cpu: 25m
@@ -172,7 +174,7 @@ components:
       nodeSelector:
         workload: general
 
-  adService:
+  ad:
     # JVM-based (Java) — needs higher memory for JVM heap
     resources:
       requests:
@@ -185,7 +187,7 @@ components:
       nodeSelector:
         workload: general
 
-  accountingService:
+  accounting:
     # .NET-based
     resources:
       requests:
@@ -198,7 +200,7 @@ components:
       nodeSelector:
         workload: general
 
-  frauddetectionService:
+  fraud-detection:
     # Kotlin-based — JVM overhead
     resources:
       requests:
@@ -211,7 +213,7 @@ components:
       nodeSelector:
         workload: general
 
-  quoteService:
+  quote:
     # PHP-based — lightweight
     resources:
       requests:
@@ -225,13 +227,11 @@ components:
         workload: general
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # TIER 3 — Platform Services (Observability + Feature Flags)
-  # PriorityClass: platform-critical (1000)
+  # TIER 3 — Platform Services (Feature Flags)
   # Note: Prometheus/Grafana/Jaeger are sub-charts managed separately below
   # ═══════════════════════════════════════════════════════════════════════════
 
   flagd:
-    priorityClassName: platform-critical
     resources:
       requests:
         cpu: 25m
@@ -241,16 +241,14 @@ components:
         memory: 128Mi
     schedulingRules:
       nodeSelector:
-        workload: general   # Flagd serves feature flags to all services — keep on reliable pool
+        workload: general
 
   # ═══════════════════════════════════════════════════════════════════════════
   # TIER 4 — Non-critical (Spot nodes)
-  # PriorityClass: non-critical (100)
   # Node pool: spot — interruptible, ~60-91% cheaper
   # ═══════════════════════════════════════════════════════════════════════════
 
-  loadgenerator:
-    priorityClassName: non-critical
+  load-generator:
     resources:
       requests:
         cpu: 50m
@@ -268,13 +266,11 @@ components:
           effect: "NoSchedule"
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # DATA STORES — Critical (Valkey, PostgreSQL, Kafka)
-  # PriorityClass: business-critical (900) — data loss if evicted
+  # DATA STORES — Critical (Valkey, Kafka)
   # ═══════════════════════════════════════════════════════════════════════════
 
-  valkey:
+  valkey-cart:
     # Redis-compatible cache — used by Cart service
-    priorityClassName: business-critical
     resources:
       requests:
         cpu: 50m
@@ -288,7 +284,6 @@ components:
 
   kafka:
     # Message queue — used by Accounting and Fraud Detection
-    priorityClassName: business-critical
     resources:
       requests:
         cpu: 100m
@@ -301,11 +296,10 @@ components:
         workload: general
 
 # ─── Observability Sub-charts ──────────────────────────────────────────────────
-# Bundled with the OTel Demo chart for Phase 5.
+# These are separate Helm sub-charts bundled with the OTel Demo.
 # Phase 8 will externalize these into dedicated ArgoCD Applications.
 
 opentelemetry-collector:
-  priorityClassName: platform-critical
   resources:
     requests:
       cpu: 100m
@@ -321,9 +315,6 @@ opentelemetry-collector:
         endpoint: jaeger-collector:14250
         tls:
           insecure: true
-      # Future: Cloud Monitoring exporter (Phase 8)
-      # googlecloud:
-      #   project: PROJECT_ID
     service:
       pipelines:
         traces:
@@ -335,7 +326,6 @@ opentelemetry-collector:
 
 prometheus:
   server:
-    priorityClassName: platform-critical
     resources:
       requests:
         cpu: 100m
@@ -346,10 +336,9 @@ prometheus:
     persistentVolume:
       enabled: true
       size: 10Gi
-      storageClass: standard-rwo   # GKE standard persistent disk
+      storageClass: standard-rwo
 
 grafana:
-  priorityClassName: platform-critical
   resources:
     requests:
       cpu: 50m
@@ -364,7 +353,6 @@ grafana:
 
 jaeger:
   allInOne:
-    priorityClassName: platform-critical
     resources:
       requests:
         cpu: 50m

@@ -52,6 +52,12 @@ spec:
       kind: ClusterRoleBinding
     - group: ""
       kind: Namespace
+    # priority-classes.yaml — cluster-scoped, required for OTel demo tier scheduling
+    - group: "scheduling.k8s.io"
+      kind: PriorityClass
+    # gitops/platform/ contains ArgoCD Application manifests (nested apps pattern)
+    - group: "argoproj.io"
+      kind: Application
 
   namespaceResourceWhitelist:
     - group: "*"
