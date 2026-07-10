@@ -58,6 +58,11 @@ spec:
     # gitops/platform/ contains ArgoCD Application manifests (nested apps pattern)
     - group: "argoproj.io"
       kind: Application
+    # External Secrets Operator installs admission webhooks as cluster-scoped resources
+    - group: "admissionregistration.k8s.io"
+      kind: ValidatingWebhookConfiguration
+    - group: "admissionregistration.k8s.io"
+      kind: MutatingWebhookConfiguration
 
   namespaceResourceWhitelist:
     - group: "*"
