@@ -23,7 +23,7 @@ resource "google_artifact_registry_repository" "docker" {
   location      = var.region
   repository_id = var.repository_id
   format        = "DOCKER"
-  description   = "Docker container images for the platform (OTel Demo, custom builds)"
+  description   = "Docker container images for platform and workload artifacts"
 
   # Lifecycle policy — keep the last 10 versions of each image to prevent
   # unbounded storage growth while preserving recent rollback capability.

@@ -1,0 +1,9 @@
+component:
+  name: kube-prometheus-stack
+  namespace: observability
+  syncWave: "0"
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: "88.3.0"
+  values: gitops/kube-prometheus-stack/values.yaml

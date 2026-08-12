@@ -11,7 +11,7 @@
 #   Cloud Logging  ←── Operations (node health, API server audit, GKE events)
 #     │
 #     ▼                (Phase 8 addition)
-#   Grafana Loki   ←── Application log exploration with label-based filtering
+#   Grafana Loki   ←── centralized log exploration with label-based filtering
 #
 # This dual approach mirrors production environments where platform teams need
 # Cloud Logging for audit/compliance and Loki for developer log exploration.

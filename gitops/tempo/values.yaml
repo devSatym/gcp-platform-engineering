@@ -1,0 +1,30 @@
+# Tempo is the shared, OTLP-native trace backend. It replaces a platform-wide
+# Jaeger dependency while Grafana continues to provide the trace query UI.
+tempo:
+  reportingEnabled: false
+  retention: 48h
+  metricsGenerator:
+    enabled: true
+    remoteWriteUrl: http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090/api/v1/write
+    processor:
+      service_graphs: {}
+      span_metrics: {}
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+persistence:
+  enabled: true
+  size: 20Gi
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi

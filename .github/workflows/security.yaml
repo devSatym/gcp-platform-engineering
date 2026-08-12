@@ -63,16 +63,17 @@ jobs:
         run: gcloud auth configure-docker ${{ env.REGISTRY }} --quiet
 
       # ─── Determine image to scan ─────────────────────────────────────────
-      - name: Get image from build artifact
+      - name: Determine image to scan
         id: image
+        env:
+          REQUESTED_IMAGE: ${{ inputs.image }}
         run: |
-          # In a real pipeline, read from build workflow outputs or artifact
-          # For now, reconstruct from git SHA
-          SHORT_SHA=$(git rev-parse --short=7 HEAD)
-          IMAGE="${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/platform-docker/otel-collector-custom:sha-${SHORT_SHA}"
-          echo "image=${IMAGE}" >> $GITHUB_OUTPUT
-          echo "Scanning image: ${IMAGE}"
-
+          if [[ -z "${REQUESTED_IMAGE}" ]]; then
+            echo "A full image reference is required for a manual or workflow-run scan" >&2
+            exit 1
+          fi
+          echo "image=${REQUESTED_IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "Scanning image: ${REQUESTED_IMAGE}"
       # ─── SBOM Generation (Syft) ──────────────────────────────────────────
       # Software Bill of Materials: complete inventory of all packages in the image
       # Stored as CycloneDX JSON + SPDX for maximum compatibility
@@ -152,12 +153,9 @@ jobs:
             --verbose 2>/dev/null | jq -r '.Descriptor.digest // empty' || \
             gcloud artifacts docker images describe ${{ steps.image.outputs.image }} \
             --format='value(image_summary.digest)' 2>/dev/null || echo "")
-
           if [[ -n "${IMAGE_DIGEST}" ]]; then
-            IMAGE_REF="${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/platform-docker/otel-collector-custom@${IMAGE_DIGEST}"
+            IMAGE_REF="${{ steps.image.outputs.image }}@${IMAGE_DIGEST}"
             cosign sign --yes "${IMAGE_REF}"
-            echo "✅ Image signed: ${IMAGE_REF}"
-          else
             echo "⚠️ Could not determine image digest — signing skipped in dry-run"
           fi
 
@@ -174,10 +172,8 @@ jobs:
       - name: Generate SLSA provenance attestation
         uses: actions/attest-build-provenance@v1
         with:
-          subject-name: ${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/platform-docker/otel-collector-custom
+          subject-name: ${{ steps.image.outputs.image }}
           subject-digest: ${{ steps.image.outputs.image }}
-
-      # ─── Summary ─────────────────────────────────────────────────────────
       - name: Security summary
         if: always()
         run: |

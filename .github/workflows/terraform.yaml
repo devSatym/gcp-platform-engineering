@@ -29,7 +29,7 @@ on:
         required: true
         default: 'dev'
         type: choice
-        options: [dev, stage, prod]
+        options: [dev, staging, prod]
 
 concurrency:
   group: terraform-${{ github.ref }}
@@ -65,12 +65,12 @@ jobs:
           terraform validate
           echo "✅ dev validates"
 
-      - name: Terraform validate (stage)
+      - name: Terraform validate (staging)
         run: |
-          cd terraform/environments/stage
+          cd terraform/environments/staging
           terraform init -backend=false -input=false
           terraform validate
-          echo "✅ stage validates"
+          echo "✅ staging validates"
 
       - name: Terraform validate (prod)
         run: |
@@ -157,7 +157,11 @@ jobs:
       # ─── Terraform Plan ──────────────────────────────────────────────────
       - name: Terraform init
         working-directory: terraform/environments/dev
-        run: terraform init -input=false
+        env:
+          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+        run: |
+          test -n "$TF_STATE_BUCKET"
+          terraform init -input=false -backend-config="bucket=$TF_STATE_BUCKET"
 
       - name: Terraform plan
         id: plan

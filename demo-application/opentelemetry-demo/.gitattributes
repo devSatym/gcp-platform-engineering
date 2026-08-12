@@ -1,6 +1,0 @@
-
-
-* text=auto
-
-gradlew text eol=lf
-src/flagd-ui/rel/overlays/bin/server text eol=lf

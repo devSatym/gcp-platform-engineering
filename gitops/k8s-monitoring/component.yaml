@@ -1,0 +1,9 @@
+component:
+  name: k8s-monitoring
+  namespace: observability
+  syncWave: "1"
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: k8s-monitoring
+    targetRevision: "4.4.0"
+  values: gitops/k8s-monitoring/values.yaml

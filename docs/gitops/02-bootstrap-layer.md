@@ -81,7 +81,7 @@ sourceRepos:
 destinations:
   - namespace: applications
   - namespace: otel-demo
-  - namespace: otel-demo-dev / otel-demo-stage / otel-demo-prod
+  - namespace: otel-demo-dev / otel-demo-staging / otel-demo-prod
 clusterResourceWhitelist:
   - ClusterRole, ClusterRoleBinding
   - CustomResourceDefinition     # OTel collector installs CRDs
@@ -117,7 +117,7 @@ Sync Wave `-2` — processed before any other resource (wave `-1`, `0`, `+2`).
 | `networking` | `platform` | Istio, Gateway config (Phase 9) |
 | `applications` | `application` | Generic application namespace |
 | `otel-demo-dev` | `dev` | OTel Demo dev environment |
-| `otel-demo-stage` | `stage` | OTel Demo stage environment |
+| `otel-demo-staging` | `staging` | OTel Demo staging environment |
 | `otel-demo-prod` | `prod` | OTel Demo prod environment |
 
 **Labels on each namespace:**
@@ -158,14 +158,14 @@ generators:
       elements:
         - env: dev
           server: https://kubernetes.default.svc
-        # stage/prod commented out — single cluster limitation
+        # staging/prod commented out — single cluster limitation
 ```
 
 **Single-cluster limitation:** Platform manages cluster-scoped resources (PriorityClasses, ESO CRDs, metrics-server APIService). On a single cluster, only **one** instance can own these. Multiple environments on one cluster cause:
 - SSA field manager conflicts on cluster-scoped resources
 - Permanent `OutOfSync` on PriorityClasses, ESO, metrics-server
 
-**When to add stage/prod:** Provision separate GKE clusters → add entries with their `server` URLs from ArgoCD cluster secrets.
+**When to add staging/prod:** Provision separate GKE clusters → add entries with their `server` URLs from ArgoCD cluster secrets.
 
 ### Generated Application Template
 
@@ -230,8 +230,8 @@ spec:
       helm:
         releaseName: otel-demo
         valueFiles:
-          - $values/gitops/applications/opentelemetry-demo/values/base.yaml
-          - $values/gitops/applications/opentelemetry-demo/values/{{env}}.yaml
+          - $values/gitops/workloads/opentelemetry-demo/values/base.yaml
+          - $values/gitops/workloads/opentelemetry-demo/values/{{env}}.yaml
 
     # Source 2: Our monorepo (provides the $values reference)
     - repoURL: "https://github.com/devSatym/gcp-platform-engineering.git"

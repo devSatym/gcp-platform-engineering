@@ -1,0 +1,29 @@
+installCRDs: true
+serviceAccount:
+  create: true
+  name: external-secrets
+  annotations:
+    iam.gke.io/gcp-service-account: "sa-external-secrets@replace-with-project-id.iam.gserviceaccount.com"
+tolerations:
+  - key: workload
+    operator: Equal
+    value: system
+    effect: NoSchedule
+nodeSelector:
+  workload: system
+webhook:
+  tolerations:
+    - key: workload
+      operator: Equal
+      value: system
+      effect: NoSchedule
+  nodeSelector:
+    workload: system
+certController:
+  tolerations:
+    - key: workload
+      operator: Equal
+      value: system
+      effect: NoSchedule
+  nodeSelector:
+    workload: system

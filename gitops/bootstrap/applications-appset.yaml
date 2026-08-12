@@ -1,90 +1,67 @@
-# =============================================================================
-# gitops/bootstrap/applications-appset.yaml
-#
-# ApplicationSet that generates one OTel Demo Application per environment.
-#
-# SINGLE-CLUSTER ARCHITECTURE NOTE:
-#   OTel Demo sub-charts (Grafana, Prometheus, Jaeger, OTel Collector) install
-#   cluster-scoped ClusterRoles with FIXED names (grafana-clusterrole, etc.).
-#   On a single cluster, deploying to multiple environments creates naming
-#   conflicts — ArgoCD marks apps as Degraded with SharedResourceWarning.
-#
-#   Current: dev only (single GKE cluster)
-#   Future:  Add stage/prod when dedicated clusters are provisioned
-#
-# The multi-source pattern (ArgoCD 2.6+) allows combining:
-#   - The upstream Helm chart from ArtifactHub
-#   - Our custom values files from the monorepo
-# Without forking or copying the upstream chart.
-#
-# Sync Wave 2: Business applications deploy after all platform components
-# (ESO, metrics-server, priority-classes) are healthy.
-# =============================================================================
-
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
-  name: otel-demo
+  name: workloads
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
-  # ─── Generator: List ────────────────────────────────────────────────────────
-  # Single environment on single cluster.
-  # Stage/prod require separate clusters to avoid ClusterRole name collisions.
+  goTemplate: true
+  goTemplateOptions:
+    - missingkey=error
   generators:
-    - list:
-        elements:
-          - env: dev
-            server: https://kubernetes.default.svc
-            chartVersion: "0.40.9"
-          # stage and prod require dedicated clusters. Enabling on a single cluster:
-          #   1. sub-chart ClusterRoles collide (grafana-clusterrole, prometheus, etc.)
-          #   2. ArgoCD marks apps Degraded with SharedResourceWarning
-          #   3. 3x resource pressure exhausts node CPU (99% utilized)
-          # - env: stage
-          #   server: https://<stage-cluster-endpoint>
-          #   chartVersion: "0.40.9"
-          # - env: prod
-          #   server: https://<prod-cluster-endpoint>
-          #   chartVersion: "0.40.9"
-
-  # ─── Template ───────────────────────────────────────────────────────────────
+    - matrix:
+        generators:
+          - git:
+              repoURL: https://github.com/replace-with-owner/replace-with-repository.git
+              revision: main
+              files:
+                - path: gitops/workloads/*/workload.yaml
+          - git:
+              repoURL: https://github.com/replace-with-owner/replace-with-repository.git
+              revision: main
+              files:
+                - path: gitops/environments/*/config.yaml
   template:
     metadata:
-      name: "otel-demo-{{env}}"
+      name: "{{.workload.name}}-{{.environment.name}}"
       namespace: argocd
       labels:
-        app.kubernetes.io/part-of: applications
-        environment: "{{env}}"
-      finalizers:
-        - resources-finalizer.argocd.argoproj.io
-
+        app.kubernetes.io/part-of: workloads
+        workload.name: "{{.workload.name}}"
+        environment: "{{.environment.name}}"
+        platform.features/progressive-delivery: "{{.workload.progressiveDelivery.enabled}}"
+        platform.features/observability: "{{.workload.observability.enabled}}"
+        platform.features/external-secrets: "{{.workload.secrets.enabled}}"
+        platform.hostname/enabled: "{{.workload.hostname.enabled}}"
+        platform.hostname/value: "{{.workload.hostname.value}}"
+        platform.network/exposure: "{{.workload.network.exposure}}"
+        platform.network/ingress-enabled: "{{.workload.network.ingress.enabled}}"
+        platform.network/gateway-class: "{{.workload.network.ingress.gatewayClass}}"
+        platform.observability/metrics: "{{.workload.observability.metrics}}"
+        platform.observability/logs: "{{.workload.observability.logs}}"
+        platform.observability/traces: "{{.workload.observability.traces}}"
+        platform.progressive-delivery/strategy: "{{.workload.progressiveDelivery.strategy}}"
+      annotations:
+        argocd.argoproj.io/sync-wave: "{{.workload.syncWave}}"
     spec:
-      project: applications
-
-      # Multi-source: upstream chart + our values overlay from the monorepo
+      project: workloads
       sources:
-        # Source 1: Upstream OTel Demo Helm chart
-        - repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
-          chart: opentelemetry-demo
-          targetRevision: "{{chartVersion}}"
+        - repoURL: "{{.workload.source.repoURL}}"
+          chart: "{{.workload.source.chart}}"
+          path: "{{.workload.source.path}}"
+          targetRevision: "{{.workload.source.targetRevision}}"
           helm:
-            releaseName: otel-demo
+            releaseName: "{{.workload.name}}"
             valueFiles:
-              # $values references the second source (our monorepo)
-              - $values/gitops/applications/opentelemetry-demo/values/base.yaml
-              - $values/gitops/applications/opentelemetry-demo/values/{{env}}.yaml
-
-        # Source 2: Our monorepo provides the values files above
-        - repoURL: "https://github.com/devSatym/gcp-platform-engineering.git"
+              - "$values/{{.workload.values.common}}"
+              - "$values/{{index .workload.values.environments .environment.name}}"
+        - repoURL: "{{.environment.gitopsRepository}}"
           targetRevision: main
-          ref: values   # Declares this source as a $values reference
-
+          ref: values
       destination:
-        server: "{{server}}"
-        namespace: "otel-demo-{{env}}"
-
+        server: "{{.environment.server}}"
+        namespace: "{{(index .workload.destinations .environment.name).namespace}}"
       syncPolicy:
         automated:
           prune: true
@@ -99,10 +76,6 @@ spec:
             duration: 10s
             factor: 2
             maxDuration: 5m
-
-      # ─── IgnoreDifferences ──────────────────────────────────────────────────
-      # Prevents ArgoCD from marking apps Degraded due to K8s API fields
-      # not declared in ArgoCD's internal schema (e.g. .status.terminatingReplicas).
       ignoreDifferences:
         - group: apps
           kind: Deployment
@@ -116,7 +89,5 @@ spec:
           kind: Service
           jsonPointers:
             - /spec/clusterIPs
-
-  # ─── Strategy ───────────────────────────────────────────────────────────────
   syncPolicy:
     applicationsSync: create-update

@@ -9,7 +9,7 @@
 #   .github/scripts/update-image-tag.sh <service> <new-tag>
 #
 # Example:
-#   .github/scripts/update-image-tag.sh otel-collector-custom sha-a83f92d
+#   .github/scripts/update-image-tag.sh <service> <new-tag>
 #
 # This script finds all references to the service's image in gitops/
 # and replaces the tag with the new one.
@@ -26,7 +26,7 @@ echo "🏷️  Updating image tag for: ${SERVICE} → ${NEW_TAG}"
 # Read from environment or construct from known convention
 REGISTRY="${GCP_REGION:-asia-south1}-docker.pkg.dev"
 PROJECT_ID="${GCP_PROJECT_ID:-}"
-REPO="platform-docker"
+REPO="-e"
 
 if [[ -z "${PROJECT_ID}" ]]; then
   echo "⚠️  GCP_PROJECT_ID not set — skipping image registry update"

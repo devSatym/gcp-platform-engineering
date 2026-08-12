@@ -1,21 +1,3 @@
-# =============================================================================
-# gitops/bootstrap/platform-appset.yaml
-#
-# ApplicationSet that generates platform component Applications per environment.
-#
-# SINGLE-CLUSTER ARCHITECTURE NOTE:
-#   Platform manages cluster-scoped resources (PriorityClasses, ESO CRDs,
-#   metrics-server APIService). On a single cluster, only ONE platform app
-#   can own these resources — multiple apps fight via SSA field managers
-#   and cause permanent OutOfSync.
-#
-#   Current: dev only (single GKE cluster)
-#   Future:  Add stage/prod when dedicated clusters are provisioned
-#            (Phase 16+ multi-cluster with ArgoCD cluster secrets)
-#
-# Sync Wave -1: AppSets create Applications, which must exist before they sync.
-# =============================================================================
-
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -24,41 +6,48 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
 spec:
-  # ─── Generator: List ────────────────────────────────────────────────────────
-  # Single environment on single cluster.
-  # To add stage/prod: provision separate GKE clusters and add entries here
-  # with their respective server URLs from ArgoCD cluster secrets.
+  goTemplate: true
+  goTemplateOptions:
+    - missingkey=error
   generators:
-    - list:
-        elements:
-          - env: dev
-            server: https://kubernetes.default.svc
-          # stage and prod are commented out until dedicated clusters exist.
-          # Enabling them on a single cluster causes:
-          #   1. SSA field manager conflicts on cluster-scoped resources
-          #   2. Permanent OutOfSync on PriorityClasses, ESO, metrics-server
-          # - env: stage
-          #   server: https://<stage-cluster-endpoint>
-          # - env: prod
-          #   server: https://<prod-cluster-endpoint>
-
-  # ─── Template: Application per environment ──────────────────────────────────
+    - matrix:
+        generators:
+          - git:
+              repoURL: https://github.com/replace-with-owner/replace-with-repository.git
+              revision: main
+              files:
+                - path: gitops/*/component.yaml
+          - git:
+              repoURL: https://github.com/replace-with-owner/replace-with-repository.git
+              revision: main
+              files:
+                - path: gitops/environments/*/config.yaml
   template:
     metadata:
-      name: "platform-{{env}}"
+      name: "{{.component.name}}-{{.environment.name}}"
       namespace: argocd
       labels:
         app.kubernetes.io/part-of: platform
-        environment: "{{env}}"
+        platform.component: "{{.component.name}}"
+        environment: "{{.environment.name}}"
+      annotations:
+        argocd.argoproj.io/sync-wave: "{{.component.syncWave}}"
     spec:
       project: platform
-      source:
-        repoURL: "https://github.com/devSatym/gcp-platform-engineering.git"
-        targetRevision: main
-        path: gitops/platform
+      sources:
+        - repoURL: "{{.component.source.repoURL}}"
+          chart: "{{.component.source.chart}}"
+          targetRevision: "{{.component.source.targetRevision}}"
+          helm:
+            releaseName: "{{.component.name}}"
+            valueFiles:
+              - "$values/{{.component.values}}"
+        - repoURL: "{{.environment.gitopsRepository}}"
+          targetRevision: main
+          ref: values
       destination:
-        server: "{{server}}"
-        namespace: platform-system
+        server: "{{.environment.server}}"
+        namespace: "{{.component.namespace}}"
       syncPolicy:
         automated:
           prune: true
@@ -66,7 +55,6 @@ spec:
         syncOptions:
           - CreateNamespace=true
           - ServerSideApply=true
-          - RespectIgnoreDifferences=true
         retry:
           limit: 5
           backoff:

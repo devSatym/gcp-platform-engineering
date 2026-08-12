@@ -1,0 +1,7 @@
+{
+  "image": {
+    "name": "otel-collector-custom",
+    "dockerfile": "gitops/workloads/opentelemetry-demo/images/otel-collector.Dockerfile",
+    "context": "gitops/workloads/opentelemetry-demo/images"
+  }
+}

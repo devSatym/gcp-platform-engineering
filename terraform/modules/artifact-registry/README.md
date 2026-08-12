@@ -45,12 +45,12 @@ module "artifact_registry" {
 ## Image Naming Convention
 
 ```
-asia-south1-docker.pkg.dev/{PROJECT_ID}/platform-docker/{service}:{tag}
+asia-south1-docker.pkg.dev/{PROJECT_ID}/REPOSITORY/{service}:{tag}
 
 Examples:
-  asia-south1-docker.pkg.dev/my-project/platform-docker/frontend:sha-a83f92d
-  asia-south1-docker.pkg.dev/my-project/platform-docker/checkout:1.2.3
-  asia-south1-docker.pkg.dev/my-project/platform-docker/custom-collector:sha-b94e01f
+  REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/service-a:sha-abc1234
+  REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/service-b:1.2.3
+  asia-south1-docker.pkg.dev/my-project/REPOSITORY/custom-collector:sha-b94e01f
 ```
 
 ## Authenticate Docker
@@ -60,8 +60,8 @@ Examples:
 gcloud auth configure-docker asia-south1-docker.pkg.dev
 
 # Build and push an image
-docker build -t asia-south1-docker.pkg.dev/PROJECT_ID/platform-docker/frontend:sha-$(git rev-parse --short HEAD) .
-docker push asia-south1-docker.pkg.dev/PROJECT_ID/platform-docker/frontend:sha-$(git rev-parse --short HEAD)
+docker build -t REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/service-a:sha-$(git rev-parse --short HEAD) .
+docker push REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/service-a:sha-$(git rev-parse --short HEAD)
 ```
 
 ## Lifecycle Policy
@@ -76,7 +76,7 @@ docker push asia-south1-docker.pkg.dev/PROJECT_ID/platform-docker/frontend:sha-$
 |---|---|---|---|
 | `project_id` | `string` | required | GCP project ID |
 | `region` | `string` | `asia-south1` | Registry region |
-| `repository_id` | `string` | `platform-docker` | Repository name |
+| `repository_id` | `string` | `REPOSITORY` | Repository name |
 | `gke_node_sa_email` | `string` | required | GKE node SA for pull access |
 | `github_actions_sa_email` | `string` | required | GitHub Actions SA for push access |
 | `labels` | `map(string)` | `{}` | Resource labels |

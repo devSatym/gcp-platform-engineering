@@ -54,7 +54,7 @@
         "argo-cd",
         "external-secrets",
         "metrics-server",
-        "opentelemetry-demo"
+        "helm-workload"
       ],
       "automerge": false,
       "stabilityDays": 7

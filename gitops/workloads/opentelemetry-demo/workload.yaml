@@ -1,0 +1,46 @@
+workload:
+  name: opentelemetry-demo
+  namespace: opentelemetry-demo
+  source:
+    type: helm
+    repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+    chart: opentelemetry-demo
+    path: ""
+    targetRevision: "0.40.9"
+  destinations:
+    dev:
+      enabled: true
+      namespace: opentelemetry-demo-dev
+    staging:
+      enabled: true
+      namespace: opentelemetry-demo-staging
+    prod:
+      enabled: true
+      namespace: opentelemetry-demo-prod
+  values:
+    common: gitops/workloads/opentelemetry-demo/values/base.yaml
+    environments:
+      dev: gitops/workloads/opentelemetry-demo/values/dev.yaml
+      staging: gitops/workloads/opentelemetry-demo/values/staging.yaml
+      prod: gitops/workloads/opentelemetry-demo/values/prod.yaml
+  network:
+    exposure: ClusterIP
+    ingress:
+      enabled: false
+      gatewayClass: ""
+      hostname: ""
+  syncWave: "2"
+  progressiveDelivery:
+    enabled: false
+    strategy: deployment
+  hostname:
+    enabled: false
+    value: ""
+  observability:
+    enabled: true
+    metrics: true
+    logs: true
+    traces: true
+  secrets:
+    enabled: false
+    references: []

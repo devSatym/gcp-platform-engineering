@@ -1,0 +1,9 @@
+component:
+  name: tempo
+  namespace: observability
+  syncWave: "0"
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: tempo
+    targetRevision: "1.24.4"
+  values: gitops/tempo/values.yaml

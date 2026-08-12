@@ -1,0 +1,9 @@
+environment:
+  name: prod
+  server: https://replace-with-prod-cluster-endpoint
+  gitopsRepository: https://github.com/replace-with-owner/replace-with-repository.git
+  policy:
+    automatedSync: false
+    prune: false
+    selfHeal: true
+    rolloutProfile: guarded

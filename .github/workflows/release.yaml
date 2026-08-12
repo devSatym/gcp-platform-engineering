@@ -63,10 +63,8 @@ jobs:
       # Pull the sha-tagged image and re-tag with the version
       - name: Tag release images
         run: |
-          SHORT_SHA=$(git rev-parse --short=7 HEAD)
-          VERSION=${{ steps.version.outputs.version }}
-
-          for service in otel-collector-custom; do
+          for manifest in gitops/workloads/*/build.json; do
+            service=$(jq -r '.image.name' "$manifest")
             SRC_IMAGE="${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/platform-docker/${service}:sha-${SHORT_SHA}"
             RELEASE_IMAGE="${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/platform-docker/${service}:${VERSION}"
 
@@ -75,7 +73,6 @@ jobs:
             docker push "${RELEASE_IMAGE}" 2>/dev/null || true
             echo "  ✓ Tagged ${service}:${VERSION}"
           done
-
       # ─── Download SBOM artifacts from build run ───────────────────────────
       - name: Download SBOM artifacts
         uses: dawidd6/action-download-artifact@v6

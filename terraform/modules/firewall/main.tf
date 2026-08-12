@@ -93,8 +93,8 @@ resource "google_compute_firewall" "allow_health_checks" {
 
   # Google's official health check source ranges
   source_ranges = [
-    "35.191.0.0/16",  # Global load balancer health checks
-    "130.211.0.0/22", # Legacy health checks
+    "35.191.0.0/16",   # Global load balancer health checks
+    "130.211.0.0/22",  # Legacy health checks
     "209.85.152.0/22", # Additional health check range
     "209.85.204.0/22", # Additional health check range
   ]

@@ -12,7 +12,7 @@
 #
 # Priority hierarchy for this platform:
 #
-#   platform-critical (1000) — Never evict: OTel Collector, Prometheus, DNS
+#   platform-critical (1000) — Never evict: telemetry collectors, Prometheus, DNS
 #   business-critical  (900) — Evict last: Frontend, Checkout, Cart, Payment
 #   business-standard  (500) — Evict if needed: Email, Recommendation, etc.
 #   non-critical       (100) — Evict first: Load Generator, test jobs
@@ -25,11 +25,11 @@ metadata:
   name: platform-critical
   annotations:
     argocd.argoproj.io/sync-wave: "0"
-    description: "Platform-critical components (OTel Collector, Prometheus, DNS, Ingress). Never sacrifice these for application workloads."
+    description: "Platform-critical components (telemetry collectors, Prometheus, DNS, Ingress). Never sacrifice these for application workloads."
 value: 1000
 globalDefault: false
 preemptionPolicy: PreemptLowerPriority
-description: "Platform-critical: OTel Collector, Prometheus, CoreDNS, kube-dns, ArgoCD, metrics-server"
+description: "Platform-critical: telemetry collectors, Prometheus, CoreDNS, kube-dns, ArgoCD, metrics-server"
 
 ---
 apiVersion: scheduling.k8s.io/v1

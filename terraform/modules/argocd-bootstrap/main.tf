@@ -30,6 +30,19 @@ resource "helm_release" "argocd" {
   wait    = true
   timeout = 600 # 10 minutes — allow time for image pulls on first install
 
+  # The pinned Argo CD chart renders a large manifest. Avoid a second OpenAPI
+  # schema download during bootstrap, which can time out before Helm creates
+  # the release resources on a newly reachable GKE control plane.
+  disable_openapi_validation = true
+
+  # Include chart Jobs in readiness. The Argo CD chart uses a pre-install Job
+  # to initialize its Redis credentials.
+  wait_for_jobs = true
+
+  # A failed install or upgrade must not leave the Helm release in a pending
+  # state that blocks subsequent Terraform applies.
+  atomic = true
+
   values = [
     templatefile("${path.module}/values.yaml", {
       project_id                = var.project_id
@@ -65,7 +78,7 @@ resource "null_resource" "root_application" {
 
       # Authenticate kubectl to the GKE cluster
       gcloud container clusters get-credentials ${var.cluster_name} \
-        --region=${var.cluster_region} \
+        --location=${var.cluster_location} \
         --project=${var.project_id}
 
       # Wait for the GKE API server to fully accept connections.
@@ -76,10 +89,10 @@ resource "null_resource" "root_application" {
 
       # STEP 1: Apply AppProjects FIRST (breaks the bootstrap chicken-and-egg).
       # ArgoCD rejects any Application whose project doesn't exist yet.
-      # projects.yaml defines: platform, applications, observability, networking, security.
+      # projects.yaml defines the bootstrap, platform, and workloads ownership boundaries.
       echo "Applying ArgoCD AppProjects..."
       kubectl apply --server-side --force-conflicts --validate=false \
-        -f "${path.module}/../../../gitops/bootstrap/projects.yaml"
+        -f "${path.module}/../../../gitops/projects/projects.yaml"
       echo "Waiting for AppProjects to be registered..."
       sleep 5
 
@@ -89,13 +102,13 @@ resource "null_resource" "root_application" {
       echo "Applying root ArgoCD Application..."
       cat <<'MANIFEST' | kubectl apply --validate=false -f -
 ${templatefile("${path.module}/root-application.yaml", {
-  git_repo_url = var.git_repo_url
+    git_repo_url = var.git_repo_url
 })}
 MANIFEST
     EOT
-  }
+}
 
-  depends_on = [helm_release.argocd]
+depends_on = [helm_release.argocd]
 }
 
 # ─────────────────────────────────────────────────────────────────────────────

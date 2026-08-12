@@ -24,7 +24,7 @@ on:
       - main
     # Only trigger when application code OR the workflow itself changes
     paths:
-      - 'applications/**'
+      - 'workloads/**'
       - '.github/workflows/build.yaml'
       - '.github/actions/**'
   # Allow manual trigger for testing
@@ -48,34 +48,38 @@ env:
   IMAGE_REPO: ${{ vars.GCP_PROJECT_ID }}/platform-docker
 
 jobs:
-  # ─── Build Matrix ──────────────────────────────────────────────────────────
-  # Each service gets its own job in the matrix.
-  # For now, we build a custom OTel Collector with GCP exporter.
-  # Phase 6 adds custom builds; upstream demo services use upstream images.
+  discover:
+    name: Discover workload images
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.manifest.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Read workload image manifests
+        id: manifest
+        run: |
+          if compgen -G "gitops/workloads/*/build.json" > /dev/null; then
+            matrix=$(jq -s -c '{include: map(.image)}' gitops/workloads/*/build.json)
+          else
+            matrix='{"include":[]}'
+          fi
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+
   build:
-    name: Build — ${{ matrix.service }}
+    needs: discover
+    name: Build — ${{ matrix.name }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     permissions:
-      contents: write       # For GitOps commit
-      id-token: write       # For WIF OIDC token
-      packages: write       # For container registry
+      contents: write
+      id-token: write
+      packages: write
 
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          # Custom OTel Collector with GCP exporters
-          - service: otel-collector-custom
-            dockerfile: applications/otel-collector/Dockerfile
-            context: applications/otel-collector/
-
-          # Add custom application Dockerfiles here as the platform grows:
-          # - service: custom-frontend
-          #   dockerfile: applications/frontend/Dockerfile
-          #   context: applications/frontend/
-
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -89,7 +93,7 @@ jobs:
         run: |
           SHORT_SHA=$(git rev-parse --short=7 HEAD)
           BUILD_NUM=${{ github.run_number }}
-          IMAGE_BASE="${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/${{ matrix.service }}"
+          IMAGE_BASE="${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/${{ matrix.name }}"
 
           echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
           echo "image_base=${IMAGE_BASE}" >> $GITHUB_OUTPUT
@@ -130,10 +134,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/.buildx-cache
-          key: buildx-${{ matrix.service }}-${{ hashFiles(matrix.dockerfile) }}-${{ github.sha }}
+          key: buildx-${{ matrix.name }}-${{ hashFiles(matrix.dockerfile) }}-${{ github.sha }}
           restore-keys: |
-            buildx-${{ matrix.service }}-${{ hashFiles(matrix.dockerfile) }}-
-            buildx-${{ matrix.service }}-
+            buildx-${{ matrix.name }}-${{ hashFiles(matrix.dockerfile) }}-
+            buildx-${{ matrix.name }}-
 
       # ─── Build & Push ─────────────────────────────────────────────────────
       - name: Build and push multi-arch image
@@ -169,7 +173,7 @@ jobs:
       - name: Update GitOps image tag
         env:
           NEW_TAG: ${{ steps.tags.outputs.tag_sha }}
-          SERVICE: ${{ matrix.service }}
+          SERVICE: ${{ matrix.name }}
         run: |
           .github/scripts/update-image-tag.sh "${SERVICE}" "${NEW_TAG}"
 
@@ -182,7 +186,7 @@ jobs:
           if git diff --staged --quiet; then
             echo "No GitOps changes to commit"
           else
-            git commit -m "chore(gitops): update ${{ matrix.service }} to sha-${{ steps.tags.outputs.short_sha }} [skip ci]"
+            git commit -m "chore(gitops): update ${{ matrix.name }} to sha-${{ steps.tags.outputs.short_sha }} [skip ci]"
             git push origin main
           fi
 
@@ -200,7 +204,7 @@ jobs:
           echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| Service | ${{ matrix.service }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | ${{ matrix.name }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Image | ${{ steps.tags.outputs.image_base }}:${{ steps.tags.outputs.tag_sha }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Digest | ${{ steps.image.outputs.digest }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Platforms | linux/amd64, linux/arm64 |" >> $GITHUB_STEP_SUMMARY

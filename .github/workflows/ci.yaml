@@ -53,22 +53,17 @@ jobs:
         with:
           version: '3.14.0'
 
-      - name: Lint Helm values (OTel Demo overlays)
+      - name: Validate workload values
         run: |
-          # Render template locally to catch schema errors in our values overlays
-          for env in dev stage prod; do
-            echo "--- Validating $env values ---"
-            helm show values open-telemetry/opentelemetry-demo 2>/dev/null || true
-            # Syntax check our YAML values files
-            python3 -c "
-          import yaml, sys
-          for f in ['gitops/applications/opentelemetry-demo/values/base.yaml',
-                    'gitops/applications/opentelemetry-demo/values/$env.yaml']:
-              with open(f) as fp:
-                  yaml.safe_load(fp)
-              print(f'  ✓ {f}')
-          "
-          done
+          python3 - <<"PY"
+          import pathlib, yaml
+          files = sorted(pathlib.Path("gitops/workloads").glob("*/values/*.yaml"))
+          for path in files:
+              with path.open() as stream:
+                  yaml.safe_load(stream)
+              print(f"  ✓ {path}")
+          print(f"Validated {len(files)} workload values files")
+          PY
 
       # Markdown linting — keeps docs consistent
       - name: Lint Markdown
@@ -110,7 +105,6 @@ jobs:
             tflint --init
             tflint
             cd -
-          done
 
       # Validate each environment (without real GCP credentials)
       - name: Terraform Init + Validate (dev)

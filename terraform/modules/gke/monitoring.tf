@@ -11,7 +11,7 @@
 #
 # Both serve different audiences and use cases:
 #   Cloud Monitoring: SRE/ops team, PagerDuty alerting, GCP cost dashboards
-#   Prometheus/Grafana: Developer dashboards, OTel business metrics, SLO tracking
+#   Prometheus/Grafana: Developer dashboards, workload telemetry metrics, SLO tracking
 #
 # Managed Prometheus (enabled below) provides a GCP-hosted Prometheus scraping
 # endpoint — this is optional/complementary, not a replacement for in-cluster

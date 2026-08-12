@@ -47,12 +47,6 @@ resource "google_project_iam_member" "gke_nodes_metric_writer" {
   member  = local.sa_member.gke_nodes
 }
 
-resource "google_project_iam_member" "gke_nodes_monitoring_viewer" {
-  project = var.project_id
-  role    = "roles/monitoring.viewer"
-  member  = local.sa_member.gke_nodes
-}
-
 resource "google_project_iam_member" "gke_nodes_ar_reader" {
   project = var.project_id
   role    = "roles/artifactregistry.reader"
@@ -76,12 +70,6 @@ resource "google_service_account" "argocd" {
   description  = "Workload Identity SA for ArgoCD. Access to Secret Manager for ArgoCD secrets."
 }
 
-resource "google_project_iam_member" "argocd_secret_accessor" {
-  project = var.project_id
-  role    = "roles/secretmanager.secretAccessor"
-  member  = local.sa_member.argocd
-}
-
 # ─────────────────────────────────────────────────────────────────────────────
 # External Secrets Operator Service Account
 # ESO reads from Secret Manager and syncs secrets into Kubernetes.
@@ -93,16 +81,11 @@ resource "google_service_account" "external_secrets" {
   description  = "Workload Identity SA for ESO. Read-only access to Secret Manager."
 }
 
-resource "google_project_iam_member" "external_secrets_secret_accessor" {
-  project = var.project_id
-  role    = "roles/secretmanager.secretAccessor"
-  member  = local.sa_member.external_secrets
-}
-
-resource "google_project_iam_member" "external_secrets_secret_viewer" {
-  project = var.project_id
-  role    = "roles/secretmanager.viewer"
-  member  = local.sa_member.external_secrets
+resource "google_secret_manager_secret_iam_member" "external_secrets_secret_accessor" {
+  for_each  = var.secret_ids
+  secret_id = each.value
+  role      = "roles/secretmanager.secretAccessor"
+  member    = local.sa_member.external_secrets
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -120,17 +103,5 @@ resource "google_service_account" "github_actions" {
 resource "google_project_iam_member" "github_actions_ar_writer" {
   project = var.project_id
   role    = "roles/artifactregistry.writer"
-  member  = local.sa_member.github_actions
-}
-
-resource "google_project_iam_member" "github_actions_gke_developer" {
-  project = var.project_id
-  role    = "roles/container.developer"
-  member  = local.sa_member.github_actions
-}
-
-resource "google_project_iam_member" "github_actions_token_creator" {
-  project = var.project_id
-  role    = "roles/iam.serviceAccountTokenCreator"
   member  = local.sa_member.github_actions
 }

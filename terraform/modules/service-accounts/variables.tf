@@ -12,3 +12,9 @@ variable "labels" {
   type        = map(string)
   default     = {}
 }
+
+variable "secret_ids" {
+  description = "Secret Manager secret resource IDs that ESO may read."
+  type        = set(string)
+  default     = []
+}

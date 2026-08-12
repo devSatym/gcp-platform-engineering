@@ -7,7 +7,7 @@
 #   - Pulling container images from public registries (bootstrap only)
 #   - Pulling images from Artifact Registry via Private Google Access
 #   - Package managers during node startup scripts
-#   - External API calls from workloads
+#   - External API calls from cluster components and workloads
 # =============================================================================
 
 resource "google_compute_router_nat" "nat" {
@@ -37,9 +37,9 @@ resource "google_compute_router_nat" "nat" {
   }
 
   # TCP session timeouts (seconds)
-  tcp_established_idle_timeout_sec    = 1200 # 20 min (GCP default)
-  tcp_transitory_idle_timeout_sec     = 30
-  tcp_time_wait_timeout_sec           = 120
+  tcp_established_idle_timeout_sec = 1200 # 20 min (GCP default)
+  tcp_transitory_idle_timeout_sec  = 30
+  tcp_time_wait_timeout_sec        = 120
 
   # UDP session timeout
   udp_idle_timeout_sec = 30

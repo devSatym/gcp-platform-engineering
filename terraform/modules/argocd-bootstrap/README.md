@@ -22,7 +22,7 @@ After this module runs, Terraform never manages Kubernetes resources again. All 
 4. ArgoCD             →  Discovers gitops/bootstrap/ → syncs all child apps
 5. ArgoCD             →  gitops/platform/ → ESO, metrics-server
 6. ArgoCD             →  gitops/observability/ → Prometheus, Grafana (Phase 8)
-7. ArgoCD             →  gitops/applications/ → OTel Demo (Phase 5)
+7. ArgoCD             →  gitops/workloads/ → generic workloads
 ```
 
 ## Files
@@ -46,10 +46,10 @@ module "argocd_bootstrap" {
   cluster_name              = module.gke.cluster_name
   cluster_endpoint          = module.gke.cluster_endpoint
   cluster_ca_certificate    = module.gke.cluster_ca_certificate
-  cluster_region            = module.gke.cluster_location
+  cluster_location          = module.gke.cluster_location
   argocd_sa_email           = module.service_accounts.argocd_sa_email
   external_secrets_sa_email = module.service_accounts.external_secrets_sa_email
-  git_repo_url              = "https://github.com/YOUR_USERNAME/project-2.git"
+  git_repo_url              = "https://github.com/replace-with-owner/replace-with-repository.git"
 
   depends_on = [module.gke]
 }
@@ -59,7 +59,7 @@ module "argocd_bootstrap" {
 
 ```bash
 # Get kubeconfig first
-gcloud container clusters get-credentials otel-dev-gke --region=asia-south1
+gcloud container clusters get-credentials replace-with-cluster-name --location=replace-with-location
 
 # Port-forward to access UI
 kubectl port-forward svc/argocd-server -n argocd 8080:443
@@ -85,7 +85,7 @@ kubectl -n argocd get secret argocd-initial-admin-secret \
 | `cluster_name` | `string` | required | GKE cluster name |
 | `cluster_endpoint` | `string` | required | GKE API server IP |
 | `cluster_ca_certificate` | `string` | required | Base64 CA cert |
-| `cluster_region` | `string` | `asia-south1` | Cluster region |
+| `cluster_location` | `string` | required | Cluster region or zone |
 | `argocd_sa_email` | `string` | required | ArgoCD GCP SA email |
 | `external_secrets_sa_email` | `string` | required | ESO GCP SA email |
 | `argocd_chart_version` | `string` | `7.7.10` | Pinned chart version |

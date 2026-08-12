@@ -37,7 +37,7 @@ chmod +x bootstrap/bootstrap.sh
 |---|---|---|
 | GCS Bucket | `{PROJECT_ID}-tf-state` | Remote Terraform state |
 | Service Account | `sa-terraform@{PROJECT_ID}.iam.gserviceaccount.com` | Terraform execution identity |
-| IAM Binding | `roles/editor` | Terraform resource management |
+| IAM Binding | `scoped infrastructure IAM roles` | Terraform resource management |
 | IAM Binding | `roles/resourcemanager.projectIamAdmin` | Terraform IAM management |
 
 ---
@@ -48,7 +48,7 @@ Update the following files with your project ID:
 
 - `terraform/environments/dev/terraform.tfvars` → set `project_id`
 - `terraform/environments/dev/backend.tf` → set `bucket`
-- `terraform/environments/stage/terraform.tfvars` + `backend.tf`
+- `terraform/environments/staging/terraform.tfvars` + `backend.tf`
 - `terraform/environments/prod/terraform.tfvars` + `backend.tf`
 
 ---

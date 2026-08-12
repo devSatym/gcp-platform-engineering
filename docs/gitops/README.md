@@ -9,7 +9,7 @@ This directory covers every file in `gitops/` — how ArgoCD discovers, manages,
 | [01-gitops-overview.md](./01-gitops-overview.md) | App of Apps pattern, sync waves, how ArgoCD works |
 | [02-bootstrap-layer.md](./02-bootstrap-layer.md) | `gitops/bootstrap/` — projects, namespaces, ApplicationSets |
 | [03-platform-layer.md](./03-platform-layer.md) | `gitops/platform/` — ESO, metrics-server, priority-classes |
-| [04-applications-layer.md](./04-applications-layer.md) | `gitops/applications/` — OTel Demo multi-source pattern |
+| [04-applications-layer.md](./04-applications-layer.md) | `gitops/workloads/` — OTel Demo multi-source pattern |
 
 ## Directory Structure
 

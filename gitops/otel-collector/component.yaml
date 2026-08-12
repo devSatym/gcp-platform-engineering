@@ -1,0 +1,9 @@
+component:
+  name: otel-collector
+  namespace: observability
+  syncWave: "1"
+  source:
+    repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+    chart: opentelemetry-collector
+    targetRevision: "0.169.0"
+  values: gitops/otel-collector/values.yaml

@@ -74,7 +74,7 @@ configs:
       p, role:platform-admin, logs, get, */*, allow
       p, role:platform-admin, exec, create, */*, allow
 
-      # Developers — can view and sync applications in the applications project only
+      # Developers — can view and sync applications in the workloads project only
       p, role:developer, applications, get, applications/*, allow
       p, role:developer, applications, sync, applications/*, allow
       p, role:developer, applications, override, applications/*, allow

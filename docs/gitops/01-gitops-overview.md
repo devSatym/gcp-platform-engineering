@@ -105,7 +105,7 @@ Each `AppProject` defines:
 | Project | Manages | Namespaces |
 |---------|---------|------------|
 | `platform` | ESO, metrics-server, cert-manager | `platform-system`, `argocd`, `kube-system` |
-| `applications` | OTel Demo, business apps | `applications`, `otel-demo-dev/stage/prod` |
+| `applications` | OTel Demo, business apps | `applications`, `otel-demo-dev/staging/prod` |
 | `observability` | Prometheus, Grafana, Loki | `observability` |
 | `networking` | Istio, Gateway API | `networking`, `istio-system`, `istio-ingress` |
 | `security` | Kyverno, Falco | `security`, `kyverno`, `falco` |
@@ -120,7 +120,7 @@ Each `AppProject` defines:
 | `Application` | Single environment, manually defined | `external-secrets.yaml`, `metrics-server.yaml` |
 | `ApplicationSet` | Generate multiple Applications from a template | `platform-appset.yaml`, `applications-appset.yaml` |
 
-`ApplicationSet` with a `list` generator creates one `Application` per element. When stage/prod clusters are added, just add entries to the generator list — no new YAML files needed.
+`ApplicationSet` with a `list` generator creates one `Application` per element. When staging/prod clusters are added, just add entries to the generator list — no new YAML files needed.
 
 ---
 
@@ -136,6 +136,6 @@ Each `AppProject` defines:
 | ArgoCD install | Terraform (one-time) | `terraform/modules/argocd-bootstrap/main.tf` |
 | Kubernetes namespaces | ArgoCD/GitOps | `gitops/bootstrap/namespaces.yaml` |
 | Platform operators (ESO, metrics-server) | ArgoCD/GitOps | `gitops/platform/` |
-| Business applications (OTel Demo) | ArgoCD/GitOps | `gitops/applications/` |
+| Business applications (OTel Demo) | ArgoCD/GitOps | `gitops/workloads/` |
 | Observability stack (Phase 8) | ArgoCD/GitOps | `gitops/observability/` |
 | Security policies (Phase 7) | ArgoCD/GitOps | `gitops/security/` |

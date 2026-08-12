@@ -1,0 +1,17 @@
+args:
+  - --kubelet-insecure-tls
+  - --kubelet-preferred-address-types=InternalIP
+tolerations:
+  - key: workload
+    operator: Equal
+    value: system
+    effect: NoSchedule
+nodeSelector:
+  workload: system
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi

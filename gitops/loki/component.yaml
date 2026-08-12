@@ -1,0 +1,9 @@
+component:
+  name: loki
+  namespace: observability
+  syncWave: "0"
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: loki
+    targetRevision: "7.3.0"
+  values: gitops/loki/values.yaml

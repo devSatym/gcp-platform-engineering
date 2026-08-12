@@ -1,0 +1,341 @@
+# =============================================================================
+# gitops/workloads/opentelemetry-demo/values/base.yaml
+#
+# Common Helm value overrides applied to ALL environments.
+# These overrides layer on top of the upstream chart defaults.
+#
+# Override philosophy:
+#   - Never modify upstream chart source
+#   - Customize only through values overlays
+#   - Keep base.yaml environment-agnostic (no env-specific replicas)
+#   - Per-env files (dev/staging/prod) override base.yaml
+#
+# Upstream chart: https://open-telemetry.github.io/opentelemetry-helm-charts
+# Chart version: 0.32.8 (pinned in ArgoCD ApplicationSet)
+#
+# IMPORTANT — Component names must use kebab-case matching the chart schema:
+#   frontend-proxy (not frontendProxy), cart (not cartService), etc.
+#   See: values.schema.json → definitions.Components.properties
+#
+# NOTE — priorityClassName is NOT supported by the chart's component schema.
+#   PriorityClasses are applied via the PriorityClass resources in
+#   gitops/platform/priority-classes.yaml. The globalDefault (business-standard)
+#   applies to all pods without an explicit priorityClassName.
+#
+# Service Tier Classification (for documentation — enforced via PriorityClasses):
+#   Tier 1 (Critical):  Frontend, FrontendProxy, Cart, Checkout, Payment, ProductCatalog
+#   Tier 2 (Standard):  Email, Recommendation, Currency, Shipping, Ad, Accounting, FraudDetection, Quote
+#   Tier 3 (Platform):  OTel Collector, Prometheus, Grafana, Jaeger, Flagd
+#   Tier 4 (Non-crit):  Load Generator → Spot nodes only
+# =============================================================================
+
+# ─── Default environment variables injected into every component ──────────────
+default:
+  env:
+    - name: OTEL_SERVICE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.labels['app.kubernetes.io/component']
+    - name: OTEL_RESOURCE_ATTRIBUTES
+      value: "deployment.environment=$(DEPLOYMENT_ENV),k8s.cluster.name=$(CLUSTER_NAME)"
+
+# ─── Components ───────────────────────────────────────────────────────────────
+# All component names use kebab-case as required by the chart schema (v0.40.9+).
+# Chart: https://open-telemetry.github.io/opentelemetry-helm-charts
+# Version: 0.40.9 (see bootstrap/applications-appset.yaml)
+#
+# Components added in v0.40.9 not used in our setup — disable explicitly:
+components:
+  # image-provider: lightweight nginx static file server — serves ALL product images
+  # Without it every product card shows a blank grey box on the storefront
+  image-provider:
+    enabled: true
+  llm:
+    enabled: false   # LLM assistant — requires GPU/API key setup
+  product-reviews:
+    enabled: false   # Requires PostgreSQL — disable until Phase 8 DB infra
+  # postgresql + product-catalog: re-enabled — nodes have ~55% CPU free
+  # after removing staging/prod. product-catalog v0.40.9 requires postgresql.
+  postgresql:
+    enabled: true
+  product-catalog:
+    enabled: true
+
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TIER 1 — Critical Business Services
+  # Node pool: general
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  frontend:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  frontend-proxy:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  cart:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 300m
+        memory: 256Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  checkout:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 300m
+        memory: 384Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  payment:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 300m
+        memory: 256Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  product-catalog:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TIER 2 — Supporting Services
+  # Node pool: general
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  email:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  recommendation:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 512Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  currency:
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  shipping:
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  ad:
+    # JVM-based (Java) — needs higher memory for JVM heap
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  accounting:
+    # .NET-based
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  fraud-detection:
+    # Kotlin-based — JVM overhead
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 384Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  quote:
+    # PHP-based — lightweight
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TIER 3 — Platform Services (Feature Flags)
+  # Note: Prometheus/Grafana/Jaeger are sub-charts managed separately below
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  flagd:
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TIER 4 — Non-critical (Spot nodes)
+  # Node pool: spot — interruptible, ~60-91% cheaper
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  load-generator:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    schedulingRules:
+      nodeSelector:
+        workload: spot
+      tolerations:
+        - key: "workload"
+          operator: "Equal"
+          value: "spot"
+          effect: "NoSchedule"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # DATA STORES — Critical (Valkey, Kafka)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  valkey-cart:
+    # Redis-compatible cache — used by Cart service
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  kafka:
+    # Message queue — used by Accounting and Fraud Detection
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+# ─── Observability Sub-charts ──────────────────────────────────────────────────
+# DISABLED at base level — enabled only in dev.yaml.
+#
+# These sub-charts install cluster-scoped ClusterRoles with FIXED names
+# (grafana-clusterrole, otel-collector, prometheus). On a single cluster,
+# deploying these to multiple environments creates SharedResourceWarning
+# conflicts — ArgoCD marks all but the first environment as Degraded.
+#
+# Phase 8 will move these to dedicated ArgoCD Applications in the
+# observability project with proper cluster-scoped resource isolation.
+
+opentelemetry-collector:
+  enabled: false
+
+prometheus:
+  enabled: false
+
+grafana:
+  enabled: false
+
+jaeger:
+  enabled: false
+
+opensearch:
+  enabled: false
+

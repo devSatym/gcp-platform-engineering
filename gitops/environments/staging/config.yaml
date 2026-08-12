@@ -1,0 +1,9 @@
+environment:
+  name: staging
+  server: https://replace-with-staging-cluster-endpoint
+  gitopsRepository: https://github.com/replace-with-owner/replace-with-repository.git
+  policy:
+    automatedSync: true
+    prune: true
+    selfHeal: true
+    rolloutProfile: validation

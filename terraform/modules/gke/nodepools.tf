@@ -1,225 +1,67 @@
-# =============================================================================
-# modules/gke/nodepools.tf
-#
-# Defines three node pools with distinct purposes, sizing, and scheduling.
-#
-# Pool philosophy (from docs/architecture/kubernetes-architecture.md):
-#
-#   system-pool  → Platform-critical components (ArgoCD, Prometheus, Istio)
-#                  Always on. Small. Tainted so only system workloads schedule here.
-#
-#   general-pool → Business microservices (OTel Demo services)
-#                  Elastic. Autoscaling. The workhorse pool.
-#
-#   spot-pool    → Non-critical, interruptible workloads (Load Generator, Chaos)
-#                  Cheap. Can scale to zero. Pods must tolerate interruption.
-# =============================================================================
-
-# ─────────────────────────────────────────────────────────────────────────────
-# SYSTEM POOL — Platform-critical workloads only
-# ─────────────────────────────────────────────────────────────────────────────
-resource "google_container_node_pool" "system" {
+resource "google_container_node_pool" "pools" {
+  for_each = var.node_pools
   provider = google-beta
 
-  project  = var.project_id
-  name     = "system-pool"
-  location = var.region
-  cluster  = google_container_cluster.primary.name
+  project        = var.project_id
+  name           = coalesce(each.value.name, each.key)
+  location       = var.location_type == "regional" ? var.region : var.node_locations[0]
+  node_locations = var.location_type == "regional" ? var.node_locations : null
+  cluster        = google_container_cluster.primary.name
 
-  # Node count per zone — with 3 zones in asia-south1, min=1 means 3 total nodes.
-  autoscaling {
-    min_node_count = var.system_pool_min_count # 1
-    max_node_count = var.system_pool_max_count # 2
+  dynamic "autoscaling" {
+    for_each = var.autoscaling.enabled ? [1] : []
+    content {
+      min_node_count = each.value.min_count
+      max_node_count = each.value.max_count
+    }
   }
 
+  node_count = var.autoscaling.enabled ? null : each.value.min_count
+
   management {
-    auto_repair  = true # Automatically repair unhealthy nodes
-    auto_upgrade = true # Upgrade nodes with cluster release channel
+    auto_repair  = each.value.auto_repair
+    auto_upgrade = each.value.auto_upgrade
   }
 
   node_config {
-    machine_type = var.system_pool_machine_type # e2-medium (2 vCPU, 4 GB)
-    disk_type    = "pd-standard"
-    disk_size_gb = 50  # OS + ArgoCD/ESO/Prometheus/Falco images
+    machine_type = each.value.machine_type
+    disk_type    = each.value.disk_type
+    disk_size_gb = each.value.disk_size_gb
+    spot         = each.value.spot
 
-    # Use the dedicated GKE node SA — never the default Compute SA.
-    service_account = var.gke_node_sa_email
-    oauth_scopes    = ["https://www.googleapis.com/auth/cloud-platform"]
-
-    # Workload Identity — GKE_METADATA mode enables the metadata server
-    # that allows pods to obtain GCP credentials via their K8s service account.
-    workload_metadata_config {
-      mode = "GKE_METADATA"
-    }
-
-    # Shielded instance config — Secure Boot prevents unsigned kernel/bootloader loading.
-    # Integrity Monitoring detects runtime modifications to the boot chain.
-    shielded_instance_config {
-      enable_secure_boot          = true
-      enable_integrity_monitoring = true
-    }
-
-    # Node labels — used by nodeSelector and affinity rules in pod specs.
-    labels = merge(var.labels, {
-      workload    = "system"
-      pool        = "system-pool"
-      environment = lookup(var.labels, "environment", "dev")
-    })
-
-    # Taint: CriticalAddonsOnly — prevents non-system pods from scheduling here.
-    # Pods that should run on system nodes must tolerate this taint:
-    #   tolerations:
-    #   - key: "workload"
-    #     operator: "Equal"
-    #     value: "system"
-    #     effect: "NoSchedule"
-    taint {
-      key    = "workload"
-      value  = "system"
-      effect = "NO_SCHEDULE"
-    }
-
-    # Node-level metadata — disables legacy metadata endpoint.
-    metadata = {
-      disable-legacy-endpoints = "true"
-    }
-
-    tags = ["gke-node", "system-pool"]
-  }
-
-  lifecycle {
-    ignore_changes = [node_config[0].resource_labels]
-  }
-}
-
-# ─────────────────────────────────────────────────────────────────────────────
-# GENERAL POOL — Business microservices (OTel Demo)
-# ─────────────────────────────────────────────────────────────────────────────
-resource "google_container_node_pool" "general" {
-  provider = google-beta
-
-  project  = var.project_id
-  name     = "general-pool"
-  location = var.region
-  cluster  = google_container_cluster.primary.name
-
-  autoscaling {
-    min_node_count = var.general_pool_min_count # 1 (at least 1 node per zone always)
-    max_node_count = var.general_pool_max_count # 5 (elastic scaling for load spikes)
-  }
-
-  management {
-    auto_repair  = true
-    auto_upgrade = true
-  }
-
-  node_config {
-    machine_type = var.general_pool_machine_type # e2-standard-4 (4 vCPU, 16 GB)
-    disk_type    = "pd-standard"
-    disk_size_gb = 80  # OTel demo images (~2-3GB each) + observability stack
-
-    service_account = var.gke_node_sa_email
-    oauth_scopes    = ["https://www.googleapis.com/auth/cloud-platform"]
+    service_account = var.node_service_account
+    oauth_scopes    = var.node_oauth_scopes
 
     workload_metadata_config {
-      mode = "GKE_METADATA"
+      mode = var.enable_workload_identity ? "GKE_METADATA" : "GCE_METADATA"
     }
 
     shielded_instance_config {
-      enable_secure_boot          = true
-      enable_integrity_monitoring = true
+      enable_secure_boot          = var.enable_shielded_nodes
+      enable_integrity_monitoring = var.enable_shielded_nodes
     }
 
-    # No taint — general pool accepts all pods that don't have specific constraints.
-    # This is the "default" landing zone for OTel Demo microservices.
-    labels = merge(var.labels, {
-      workload    = "general"
-      pool        = "general-pool"
-      environment = lookup(var.labels, "environment", "dev")
+    labels = merge(var.labels, each.value.labels, {
+      pool = each.key
     })
 
-    metadata = {
-      disable-legacy-endpoints = "true"
-    }
-
-    tags = ["gke-node", "general-pool"]
-  }
-
-  lifecycle {
-    ignore_changes = [node_config[0].resource_labels]
-  }
-}
-
-# ─────────────────────────────────────────────────────────────────────────────
-# SPOT POOL — Non-critical, interruptible workloads
-# ─────────────────────────────────────────────────────────────────────────────
-resource "google_container_node_pool" "spot" {
-  provider = google-beta
-
-  project  = var.project_id
-  name     = "spot-pool"
-  location = var.region
-  cluster  = google_container_cluster.primary.name
-
-  autoscaling {
-    min_node_count = var.spot_pool_min_count # 0 — can scale to zero when unused
-    max_node_count = var.spot_pool_max_count # 3 — cost guard
-  }
-
-  management {
-    auto_repair  = true
-    auto_upgrade = true
-  }
-
-  node_config {
-    machine_type = var.spot_pool_machine_type # e2-standard-2 (2 vCPU, 8 GB)
-    disk_type    = "pd-standard"
-    disk_size_gb = 50  # Standard — spot nodes pull images on demand
-
-    # Spot VMs — up to 91% cheaper than on-demand, but can be preempted with 30s notice.
-    # Only schedule workloads here that can handle sudden termination gracefully.
-    spot = true
-
-    service_account = var.gke_node_sa_email
-    oauth_scopes    = ["https://www.googleapis.com/auth/cloud-platform"]
-
-    workload_metadata_config {
-      mode = "GKE_METADATA"
-    }
-
-    shielded_instance_config {
-      enable_secure_boot          = true
-      enable_integrity_monitoring = true
-    }
-
-    labels = merge(var.labels, {
-      workload    = "spot"
-      pool        = "spot-pool"
-      environment = lookup(var.labels, "environment", "dev")
-    })
-
-    # Taint: workload=spot:NoSchedule — only pods that explicitly tolerate spot preemption
-    # should land here. Prevents production services from accidentally scheduling on spot.
-    # Pods must include:
-    #   tolerations:
-    #   - key: "workload"
-    #     operator: "Equal"
-    #     value: "spot"
-    #     effect: "NoSchedule"
-    taint {
-      key    = "workload"
-      value  = "spot"
-      effect = "NO_SCHEDULE"
+    dynamic "taint" {
+      for_each = each.value.taints
+      content {
+        key    = taint.value.key
+        value  = taint.value.value
+        effect = taint.value.effect
+      }
     }
 
     metadata = {
       disable-legacy-endpoints = "true"
     }
 
-    tags = ["gke-node", "spot-pool"]
+    tags = each.value.tags
   }
 
   lifecycle {
-    ignore_changes = [node_config[0].resource_labels]
+    prevent_destroy = false
   }
 }

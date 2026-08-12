@@ -13,7 +13,7 @@ spec:
   # Root app lives in 'default' project — this project always exists in ArgoCD.
   # Child apps (discovered from gitops/bootstrap/) each live in their own
   # proper project (platform, applications, observability etc.) as defined
-  # in gitops/bootstrap/projects.yaml which gets applied before this root app.
+  # in gitops/projects/projects.yaml which gets applied before this root app.
   project: default
   source:
     repoURL: "${git_repo_url}"

@@ -1,0 +1,44 @@
+# Grafana's Kubernetes Monitoring chart deploys Alloy with supported generic
+# collection pipelines. It collects logs from pods and nodes, plus Kubernetes
+# events; it does not contain any workload names or selectors.
+cluster:
+  name: platform
+
+collectors:
+  alloy-logs:
+    presets:
+      - daemonset
+      - filesystem-log-reader
+
+destinations:
+  loki:
+    type: loki
+    url: http://loki-gateway.observability.svc.cluster.local/loki/api/v1/push
+
+podLogsViaLoki:
+  collector: alloy-logs
+  enabled: true
+  destinations:
+    - loki
+
+nodeLogs:
+  collector: alloy-logs
+  enabled: true
+  destinations:
+    - loki
+
+clusterEvents:
+  collector: alloy-logs
+  enabled: true
+  destinations:
+    - loki
+
+collectorCommon:
+  alloy:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi

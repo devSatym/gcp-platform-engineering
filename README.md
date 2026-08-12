@@ -1,6 +1,6 @@
-# Platform Engineering on GCP — OpenTelemetry Demo
+# Reusable GCP DevSecOps Platform
 
-> **A production-style platform engineering project on Google Cloud Platform, using the OpenTelemetry Astronomy Shop as the deployed workload.**
+> A production-style, reusable GCP platform for arbitrary Helm-based microservice workloads.
 
 ---
 
@@ -8,15 +8,13 @@
 
 This repository demonstrates how a mature platform engineering team would build, operate, and maintain a cloud-native platform on GCP — not just deploy an application.
 
-The **[OpenTelemetry Demo](https://github.com/open-telemetry/opentelemetry-demo)** (Astronomy Shop) is a polyglot microservices e-commerce application built intentionally to showcase distributed observability. We treat it as a real production workload and build an entire platform around it.
-
-We do **not** own or modify the application source. We own everything around it:
+This repository does not include a bundled application. Workloads are onboarded through the generic GitOps contract under `gitops/workloads/`. The platform owns:
 - Terraform infrastructure
 - Kubernetes platform (GKE)
 - GitOps delivery (ArgoCD)
 - CI/CD pipelines (GitHub Actions)
 - Security enforcement (Kyverno, Binary Authorization)
-- Observability (Prometheus, Grafana, Loki, Jaeger, OTel Collector)
+- Observability (Prometheus, Grafana, Loki, Jaeger, telemetry collector)
 - Service mesh (Istio)
 - Progressive delivery (Argo Rollouts)
 - Autoscaling & capacity engineering
@@ -49,11 +47,11 @@ GCP / GKE (Kubernetes Platform)
 ArgoCD (GitOps — Cluster State from Git)
     │
     ▼
-OpenTelemetry Demo (Workload)
+Generic Helm Workload
     │
     ▼
-OTel Collector → Prometheus → Grafana
-                           → Jaeger
+Telemetry Collector → Prometheus → Grafana
+                           → Cloud Monitoring
                            → Cloud Monitoring
     │
     ▼
@@ -134,8 +132,7 @@ platform-engineering-gcp/
 ├── .github/                 # GitHub Actions workflows
 │   └── workflows/
 │
-└── demo-application/        # Upstream OTel Demo (submodule / reference)
-    └── opentelemetry-demo/
+└── gitops/workloads/       # Workload registrations and values
 ```
 
 ---
@@ -148,10 +145,10 @@ platform-engineering-gcp/
 | 2 | **GCP Foundation & Network Architecture** | VPC, subnets, Cloud Router/NAT, firewall, remote Terraform state | ⬜ Not Started |
 | 3 | **Production-Grade GKE Platform** | Private regional GKE, node pools, Workload Identity, Dataplane V2 | ⬜ Not Started |
 | 4 | **GitOps Platform Bootstrap** | ArgoCD, App of Apps, ApplicationSets, sync waves, multi-env layout | ⬜ Not Started |
-| 5 | **Deploy & Productionize OTel Demo** | Helm overlays, Artifact Registry, tiered scheduling, GCP ingress + TLS | ⬜ Not Started |
+| 5 | **Deploy and validate example workloads** | Helm overlays, Artifact Registry, tiered scheduling, GCP ingress + TLS | ⬜ Not Started |
 | 6 | **Enterprise CI/CD & Supply Chain** | GitHub Actions, image scanning (Trivy), signing (Cosign), SBOM | ⬜ Not Started |
 | 7 | **Enterprise Security Platform** | Kyverno policies, Binary Authorization, OPA Gatekeeper, network policies | ⬜ Not Started |
-| 8 | **Enterprise Observability Platform** | Custom Grafana dashboards, Loki, alerting, SLI metrics, OTel Collector tuning | ⬜ Not Started |
+| 8 | **Enterprise Observability Platform** | Custom Grafana dashboards, Loki, alerting, SLI metrics, telemetry collector tuning | ⬜ Not Started |
 | 9 | **Service Mesh & Zero-Trust Networking** | Istio on GKE, mTLS, traffic management, PeerAuthentication | ⬜ Not Started |
 | 10 | **Progressive Delivery** | Argo Rollouts, canary/blue-green deployments, automated verification | ⬜ Not Started |
 | 11 | **Autoscaling & Capacity Engineering** | HPA, VPA, KEDA, cluster autoscaler tuning, load testing | ⬜ Not Started |
@@ -203,8 +200,5 @@ Every decision in this project follows these guiding principles:
 
 This project is licensed under the [Apache 2.0 License](LICENSE).
 
-The OpenTelemetry Demo application is maintained by the OpenTelemetry community and licensed separately. See [demo-application/opentelemetry-demo/LICENSE](demo-application/opentelemetry-demo/LICENSE).
 
 ---
-
-*Built as a platform engineering portfolio project. Not affiliated with the OpenTelemetry project.*

@@ -1,213 +1,155 @@
-# =============================================================================
-# modules/gke/cluster.tf
-#
-# Defines the google_container_cluster resource — the private, regional, hardened
-# GKE cluster that is the Kubernetes platform for this project.
-#
-# Design decisions documented in: docs/adr/001-why-gke.md
-#                                  docs/adr/004-why-private-cluster.md
-# =============================================================================
-
 resource "google_container_cluster" "primary" {
-  provider = google-beta # Required for some beta features (gateway_api_config, etc.)
+  provider = google-beta
 
   project  = var.project_id
   name     = var.cluster_name
-  location = var.region # Regional cluster — HA across all 3 zones in asia-south1
+  location = var.location_type == "regional" ? var.region : var.node_locations[0]
 
-  # ─── Network ──────────────────────────────────────────────────────────────
-  # Attach to the VPC and GKE subnet provisioned in Phase 2.
-  network    = var.vpc_name
-  subnetwork = var.gke_subnet_name
+  node_locations = var.location_type == "regional" ? var.node_locations : null
+  network        = var.network_name
+  subnetwork     = var.subnetwork_name
 
-  # VPC-native (alias IP) cluster — required for Dataplane V2 and private GKE.
-  # Secondary IP ranges declared in Phase 2 networking module are referenced here.
   ip_allocation_policy {
-    cluster_secondary_range_name  = var.gke_pods_range_name    # "gke-pods" → 10.10.0.0/16
-    services_secondary_range_name = var.gke_services_range_name # "gke-services" → 10.20.0.0/20
+    cluster_secondary_range_name  = var.pods_secondary_range_name
+    services_secondary_range_name = var.services_secondary_range_name
   }
 
-  # ─── Private Cluster ──────────────────────────────────────────────────────
-  # Nodes have no public IPs. Outbound internet goes via Cloud NAT (Phase 2).
-  private_cluster_config {
-    enable_private_nodes = true
-
-    # enable_private_endpoint = false: API server has a public endpoint.
-    # This is intentional for dev — allows kubectl from local machine + Cloud Shell.
-    # For prod: set to true and use an IAP tunnel or bastion.
-    enable_private_endpoint = var.enable_private_endpoint
-
-    # Control plane CIDR — must not overlap with VPC, pods, or services ranges.
-    # /28 is the minimum block required by GKE.
-    master_ipv4_cidr_block = var.master_ipv4_cidr_block
-  }
-
-  # Restrict API server access to specific CIDRs.
-  # Dev: 0.0.0.0/0 (open, protected by GKE auth).
-  # Stage/prod: restrict to your VPN/bastion CIDR.
-  master_authorized_networks_config {
-    cidr_blocks {
-      cidr_block   = var.master_authorized_cidr
-      display_name = "Authorized access (${var.cluster_name})"
+  dynamic "private_cluster_config" {
+    for_each = var.private_cluster.enabled ? [var.private_cluster] : []
+    content {
+      enable_private_nodes    = true
+      enable_private_endpoint = private_cluster_config.value.enable_private_endpoint
+      master_ipv4_cidr_block  = private_cluster_config.value.master_ipv4_cidr_block
     }
   }
 
-  # ─── Kubernetes Version ───────────────────────────────────────────────────
-  # REGULAR channel: predictable managed patch + minor upgrades.
-  # GKE handles patch upgrades automatically; minor upgrades are controlled.
+  dynamic "master_authorized_networks_config" {
+    for_each = length(var.private_cluster.master_authorized_cidrs) > 0 ? [1] : []
+    content {
+      dynamic "cidr_blocks" {
+        for_each = var.private_cluster.master_authorized_cidrs
+        content {
+          cidr_block   = cidr_blocks.value.cidr_block
+          display_name = cidr_blocks.value.display_name
+        }
+      }
+    }
+  }
+
   release_channel {
-    channel = "REGULAR"
+    channel = var.release_channel
   }
 
-  # ─── Dataplane V2 — eBPF Networking ───────────────────────────────────────
-  # Replaces kube-proxy and iptables with eBPF (Cilium-based).
-  # Benefits: better network policy performance, lower latency, richer observability.
-  # NOTE: ADVANCED_DATAPATH enables Network Policies automatically.
-  # An explicit network_policy{} block is REJECTED by the GKE API with error 400
-  # when this datapath is selected — do NOT add it back.
-  datapath_provider = "ADVANCED_DATAPATH"
+  datapath_provider = var.datapath_provider
 
-  # ─── Workload Identity ────────────────────────────────────────────────────
-  # Enables keyless pod-to-GCP-SA authentication.
-  # Pods use their Kubernetes SA to assume a GCP SA — no JSON key files.
-  # Phase 4 configures the actual K8s SA → GCP SA bindings.
-  workload_identity_config {
-    workload_pool = "${var.project_id}.svc.id.goog"
-  }
-
-  # Metadata server is required for Workload Identity to function.
-  # Blocks legacy metadata APIs that could leak SA tokens.
-  node_config {
-    # This default node pool is removed immediately after cluster creation.
-    # disk_type must be pd-standard — pd-ssd (default) exceeds SSD quota in asia-south1.
-    machine_type = "e2-medium"
-    disk_type    = "pd-standard"
-    disk_size_gb = 30
-    service_account = var.gke_node_sa_email
-    oauth_scopes = ["https://www.googleapis.com/auth/cloud-platform"]
-
-    workload_metadata_config {
-      mode = "GKE_METADATA" # Enables Workload Identity on nodes
+  dynamic "workload_identity_config" {
+    for_each = var.enable_workload_identity ? [1] : []
+    content {
+      workload_pool = "${var.project_id}.svc.id.goog"
     }
   }
 
-  # ─── Shielded Nodes ───────────────────────────────────────────────────────
-  # Secure Boot + vTPM + Integrity Monitoring at the node VM level.
-  # Protects against boot-level rootkits and unauthorized modifications.
-  enable_shielded_nodes = true
+  enable_shielded_nodes = var.enable_shielded_nodes
 
-  # ─── Binary Authorization ─────────────────────────────────────────────────
-  # Phase 7 will configure actual policies (image signing via Cosign).
-  # DISABLED here — switching to ENFORCE in Phase 7 after pipeline is ready.
   binary_authorization {
-    evaluation_mode = "DISABLED"
+    evaluation_mode = var.binary_authorization_mode
   }
 
-  # ─── Gateway API ──────────────────────────────────────────────────────────
-  # Enables the GKE Gateway API controller — prerequisite for Istio Gateway (Phase 9)
-  # and the proxy-subnet we created in Phase 2.
-  gateway_api_config {
-    channel = "CHANNEL_STANDARD"
-  }
-
-  # ─── Vertical Pod Autoscaler ──────────────────────────────────────────────
-  # VPA recommends optimal CPU/memory requests per container.
-  # Actual HPA/VPA policies are configured in Phase 11.
-  vertical_pod_autoscaling {
-    enabled = local.enable_vpa
-  }
-
-  # ─── Cloud DNS ────────────────────────────────────────────────────────────
-  # Use Cloud DNS instead of kube-dns for in-cluster DNS resolution.
-  # Lower latency, better scalability, integrates with Cloud DNS zones.
-  dns_config {
-    cluster_dns        = "CLOUD_DNS"
-    cluster_dns_scope  = "CLUSTER_SCOPE"
-  }
-
-  # ─── Logging ──────────────────────────────────────────────────────────────
-  # Exports to Cloud Logging. Components defined in logging.tf locals.
-  logging_config {
-    enable_components = local.logging_components
-  }
-
-  # ─── Monitoring ───────────────────────────────────────────────────────────
-  # Exports to Cloud Monitoring. Config defined in monitoring.tf locals.
-  monitoring_config {
-    enable_components = local.monitoring_components
-
-    # GCP-managed Prometheus scraping — complements in-cluster Prometheus (Phase 8).
-    managed_prometheus {
-      enabled = local.enable_managed_prometheus
-    }
-
-    # eBPF-level network flow metrics from Dataplane V2.
-    advanced_datapath_observability_config {
-      enable_metrics = true
+  dynamic "gateway_api_config" {
+    for_each = var.enable_gateway_api ? [1] : []
+    content {
+      channel = "CHANNEL_STANDARD"
     }
   }
 
-  # ─── Maintenance Window ───────────────────────────────────────────────────
-  # Weekday maintenance: Mon–Fri 02:00–06:00 IST (UTC 20:30–00:30 previous day).
-  # Avoids peak business hours for patch upgrades.
-  maintenance_policy {
-    recurring_window {
-      start_time = "2026-01-01T20:30:00Z"
-      end_time   = "2026-01-02T00:30:00Z"
-      recurrence = "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"
-    }
-  }
-
-  # ─── Cluster Addons ───────────────────────────────────────────────────────
-  addons_config {
-    # HTTP Load Balancing — required for GKE Ingress and Gateway API.
-    http_load_balancing {
-      disabled = false
-    }
-
-    # Horizontal Pod Autoscaler — enabled, configured in Phase 11.
-    horizontal_pod_autoscaling {
-      disabled = false
-    }
-
-    # GKE Dashboard — kubernetes_dashboard addon was removed in provider v5+.
-    # Use Cloud Console for cluster monitoring instead.
-
-    # Network Policy — handled by Dataplane V2, not this addon.
-    network_policy_config {
-      disabled = true
-    }
-
-    # GCS Fuse CSI driver — for mounting Cloud Storage as a volume (future phases).
-    gcs_fuse_csi_driver_config {
+  dynamic "vertical_pod_autoscaling" {
+    for_each = var.enable_vertical_pod_autoscaling ? [1] : []
+    content {
       enabled = true
     }
   }
 
-  # ─── Default Node Pool Removal ────────────────────────────────────────────
-  # GKE requires at least one node to create the cluster.
-  # We immediately remove the default pool and manage our own in nodepools.tf.
-  remove_default_node_pool = true
-  initial_node_count       = 1
-
-  # ─── Deletion Protection ──────────────────────────────────────────────────
-  # Set to false for portfolio — allows terraform destroy.
-  # Production: set to true to prevent accidental deletion.
-  deletion_protection = false
-
-  # ─── Resource Labels ──────────────────────────────────────────────────────
-  resource_labels = var.labels
-
-  # ─── Lifecycle ────────────────────────────────────────────────────────────
-  lifecycle {
-    # Prevent Terraform from destroying and recreating the cluster
-    # if the min_master_version changes due to GKE auto-upgrades.
-    ignore_changes = [
-      node_config,
-      min_master_version,
-    ]
+  dynamic "dns_config" {
+    for_each = var.enable_cloud_dns ? [1] : []
+    content {
+      cluster_dns       = "CLOUD_DNS"
+      cluster_dns_scope = "CLUSTER_SCOPE"
+    }
   }
 
-  # GKE depends on networking and NAT being ready first.
-  depends_on = [var.depends_on_nat]
+  logging_config {
+    enable_components = var.logging_components
+  }
+
+  monitoring_config {
+    enable_components = var.monitoring_components
+
+    managed_prometheus {
+      enabled = var.enable_managed_prometheus
+    }
+
+    advanced_datapath_observability_config {
+      enable_metrics = var.enable_advanced_datapath_metrics
+      enable_relay   = var.enable_datapath_relay
+    }
+  }
+
+  dynamic "cluster_autoscaling" {
+    for_each = var.autoscaling.enabled ? [1] : []
+    content {
+      autoscaling_profile = var.autoscaling.profile
+    }
+  }
+
+  dynamic "maintenance_policy" {
+    for_each = var.maintenance_start_time != null && var.maintenance_end_time != null && var.maintenance_recurrence != null ? [1] : []
+    content {
+      recurring_window {
+        start_time = var.maintenance_start_time
+        end_time   = var.maintenance_end_time
+        recurrence = var.maintenance_recurrence
+      }
+    }
+  }
+
+  addons_config {
+    http_load_balancing {
+      disabled = !var.enable_http_load_balancing
+    }
+
+    horizontal_pod_autoscaling {
+      disabled = !var.enable_hpa_addon
+    }
+
+    dynamic "network_policy_config" {
+      for_each = var.datapath_provider == "ADVANCED_DATAPATH" ? [] : [1]
+      content {
+        disabled = !var.enable_network_policy
+      }
+    }
+
+    gcs_fuse_csi_driver_config {
+      enabled = var.enable_gcs_fuse_csi
+    }
+  }
+
+  remove_default_node_pool = true
+  initial_node_count       = 1
+  deletion_protection      = var.deletion_protection
+  resource_labels          = var.labels
+
+  lifecycle {
+    precondition {
+      condition = (
+        (var.maintenance_start_time == null && var.maintenance_end_time == null && var.maintenance_recurrence == null) ||
+        (var.maintenance_start_time != null && var.maintenance_end_time != null && var.maintenance_recurrence != null)
+      )
+      error_message = "Maintenance window settings must be provided all together or all omitted."
+    }
+
+    precondition {
+      condition     = var.autoscaling.enabled || alltrue([for pool in values(var.node_pools) : pool.min_count == pool.max_count])
+      error_message = "When autoscaling is disabled, every node pool must have min_count equal to max_count."
+    }
+  }
 }

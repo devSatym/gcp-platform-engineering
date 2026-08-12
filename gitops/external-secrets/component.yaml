@@ -1,0 +1,9 @@
+component:
+  name: external-secrets
+  namespace: platform-system
+  syncWave: "0"
+  source:
+    repoURL: https://charts.external-secrets.io
+    chart: external-secrets
+    targetRevision: "0.12.1"
+  values: gitops/external-secrets/values.yaml

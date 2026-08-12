@@ -26,10 +26,9 @@ variable "cluster_ca_certificate" {
   sensitive   = true
 }
 
-variable "cluster_region" {
-  description = "GKE cluster region. From gke module output."
+variable "cluster_location" {
+  description = "GKE cluster location (region or zone). From gke module output."
   type        = string
-  default     = "asia-south1"
 }
 
 # ─── Service accounts (from Phase 2 service-accounts module outputs) ──────────
