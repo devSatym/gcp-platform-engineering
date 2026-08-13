@@ -8,8 +8,9 @@ component:
     targetRevision: "88.3.0"
   values: gitops/kube-prometheus-stack/values.yaml
   # Argo CD renders the Helm chart without Helm's live-cluster Secret lookup.
-  # Preserve this generated password so it cannot drift from Grafana's
-  # persistent database on a future reconciliation.
+  # Preserve this generated password and its pod-template checksum so they
+  # cannot drift from Grafana's persistent database or trigger a rollout on a
+  # future reconciliation.
   ignoreDifferences:
     - group: ""
       kind: Secret
@@ -17,3 +18,9 @@ component:
       namespace: observability
       jsonPointers:
         - /data/admin-password
+    - group: apps
+      kind: Deployment
+      name: kube-prometheus-stack-grafana
+      namespace: observability
+      jsonPointers:
+        - /spec/template/metadata/annotations/checksum~1secret
