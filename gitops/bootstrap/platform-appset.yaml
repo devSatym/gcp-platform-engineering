@@ -61,6 +61,10 @@ spec:
         syncOptions:
           - CreateNamespace=true
           - ServerSideApply=true
+          # Preserve fields explicitly listed in an application's
+          # ignoreDifferences rules during sync. This is needed for generated
+          # credentials backed by persistent application state.
+          - RespectIgnoreDifferences=true
           # CRD-owning charts and their custom resources can be installed in
           # one reconciliation without a first-sync dry-run race.
           - SkipDryRunOnMissingResource=true
@@ -70,3 +74,20 @@ spec:
             duration: 5s
             factor: 2
             maxDuration: 3m
+  # Conditional fields belong in templatePatch so the ApplicationSet itself
+  # remains valid YAML before its Go template is rendered.
+  templatePatch: |
+    {{- with (index .component "ignoreDifferences") }}
+    spec:
+      ignoreDifferences:
+        {{- range . }}
+        - group: "{{ .group }}"
+          kind: "{{ .kind }}"
+          name: "{{ .name }}"
+          namespace: "{{ .namespace }}"
+          jsonPointers:
+            {{- range .jsonPointers }}
+            - "{{ . }}"
+            {{- end }}
+        {{- end }}
+    {{- end }}
