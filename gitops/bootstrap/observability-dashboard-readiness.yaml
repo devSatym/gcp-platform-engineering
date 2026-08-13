@@ -53,7 +53,7 @@ spec:
               readonly dashboard_uids="platform-golden-signals platform-overview platform-telemetry-pipeline platform-logs-events platform-traces-service-graph"
 
               while [ "$(date +%s)" -lt "$deadline" ]; do
-                if curl --silent --show-error --fail --connect-timeout 5 --max-time 10 "${grafana_url}/health" | grep -q '"database":"ok"'; then
+                if curl --silent --show-error --fail --connect-timeout 5 --max-time 10 "${grafana_url}/health" | grep -Eq '"database"[[:space:]]*:[[:space:]]*"ok"'; then
                   dashboards_ready=true
                   for dashboard_uid in $dashboard_uids; do
                     if ! curl --silent --show-error --fail --netrc-file /work/.netrc --output /dev/null --connect-timeout 5 --max-time 10 "${grafana_url}/dashboards/uid/${dashboard_uid}"; then
