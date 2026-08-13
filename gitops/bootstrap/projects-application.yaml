@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: projects
+  namespace: argocd
+  annotations:
+    # AppProjects must exist before ApplicationSets create Applications that
+    # reference them.
+    argocd.argoproj.io/sync-wave: "-2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  # The default project is available before platform/workloads/bootstrap
+  # AppProjects are reconciled from Git.
+  project: default
+  source:
+    repoURL: https://github.com/devSatym/gcp-platform-engineering.git
+    targetRevision: main
+    path: gitops/projects
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
