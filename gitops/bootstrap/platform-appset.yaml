@@ -6,6 +6,10 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
 spec:
+  # Preserve resources only while retiring the chart that previously conflicted
+  # with GKE's managed metrics API. This guard is removed after reconciliation.
+  syncPolicy:
+    preserveResourcesOnDeletion: true
   goTemplate: true
   goTemplateOptions:
     - missingkey=error

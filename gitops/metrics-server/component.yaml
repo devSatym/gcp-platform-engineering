@@ -1,9 +1,0 @@
-component:
-  name: metrics-server
-  namespace: kube-system
-  syncWave: "1"
-  source:
-    repoURL: https://kubernetes-sigs.github.io/metrics-server
-    chart: metrics-server
-    targetRevision: "3.12.2"
-  values: gitops/metrics-server/values.yaml
