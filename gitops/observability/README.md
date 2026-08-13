@@ -48,6 +48,9 @@ through GitOps when Grafana starts:
 - **Platform / Traces and Service Graph** — Tempo span metrics and service
   graph metrics, with Grafana Explore for trace search.
 
+They are loaded by Grafana's dedicated `platform` dashboard provider; Loki's
+maintained dashboards are still discovered through the Grafana sidecar.
+
 Loki also supplies its maintained dashboards, recording rules, alert rules,
 and ServiceMonitor. Tempo and the Alloy operator are scraped by Prometheus.
 The platform alert rules intentionally route only to Alertmanager's local UI;
