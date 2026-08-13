@@ -36,6 +36,24 @@ Platform / Service Golden Signals dashboard. It shows HTTP rate, error ratio,
 p95 latency, and running Pods whenever standard metric families are available.
 Application-specific dashboards belong with their workload.
 
+The platform also provisions the following reusable dashboards automatically
+through GitOps when Grafana starts:
+
+- **Platform / Overview** — cluster readiness, resource use, target health,
+  and firing alerts.
+- **Platform / Telemetry Pipeline** — collector scrape health plus Loki and
+  Tempo ingestion.
+- **Platform / Logs and Events** — namespace-scoped logs, error signals, and
+  Kubernetes warnings through Loki.
+- **Platform / Traces and Service Graph** — Tempo span metrics and service
+  graph metrics, with Grafana Explore for trace search.
+
+Loki also supplies its maintained dashboards, recording rules, alert rules,
+and ServiceMonitor. Tempo and the Alloy operator are scraped by Prometheus.
+The platform alert rules intentionally route only to Alertmanager's local UI;
+configure a credential-backed receiver separately before enabling external
+notifications.
+
 ## Trace backend decision
 
 Tempo is the platform trace backend rather than Jaeger. It accepts OTLP

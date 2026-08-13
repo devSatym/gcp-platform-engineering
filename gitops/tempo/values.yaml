@@ -28,3 +28,11 @@ resources:
   limits:
     cpu: "1"
     memory: 1Gi
+
+# Prometheus scrapes Tempo's backend and metrics-generator health. Grafana
+# uses the same service as its trace datasource.
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  additionalLabels:
+    release: kube-prometheus-stack

@@ -123,6 +123,206 @@ grafana:
               }
             ]
           }
+      platform-overview:
+        json: |
+          {
+            "title": "Platform / Overview",
+            "uid": "platform-overview",
+            "schemaVersion": 39,
+            "tags": ["platform", "kubernetes", "overview"],
+            "timezone": "browser",
+            "time": {"from": "now-6h", "to": "now"},
+            "templating": {"list": [{"name": "datasource", "label": "Metrics datasource", "type": "datasource", "query": "prometheus"}]},
+            "panels": [
+              {
+                "id": 1,
+                "type": "stat",
+                "title": "Ready Kubernetes nodes",
+                "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "targets": [{"refId": "A", "expr": "sum(kube_node_status_condition{condition=\"Ready\",status=\"true\"})"}],
+                "options": {"reduceOptions": {"calcs": ["lastNotNull"], "values": false}, "orientation": "auto", "textMode": "auto"}
+              },
+              {
+                "id": 2,
+                "type": "stat",
+                "title": "Ready pods",
+                "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "targets": [{"refId": "A", "expr": "sum(kube_pod_status_ready{condition=\"true\"})"}],
+                "options": {"reduceOptions": {"calcs": ["lastNotNull"], "values": false}, "orientation": "auto", "textMode": "auto"}
+              },
+              {
+                "id": 3,
+                "type": "stat",
+                "title": "Observability targets up",
+                "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0},
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "targets": [{"refId": "A", "expr": "sum(up{namespace=\"observability\"})"}],
+                "options": {"reduceOptions": {"calcs": ["lastNotNull"], "values": false}, "orientation": "auto", "textMode": "auto"}
+              },
+              {
+                "id": 4,
+                "type": "stat",
+                "title": "Firing alerts",
+                "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "targets": [{"refId": "A", "expr": "count(ALERTS{alertstate=\"firing\"})"}],
+                "options": {"reduceOptions": {"calcs": ["lastNotNull"], "values": false}, "orientation": "auto", "textMode": "auto"}
+              },
+              {
+                "id": 5,
+                "type": "timeseries",
+                "title": "CPU usage by namespace",
+                "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "targets": [{"refId": "A", "expr": "sum by (namespace) (rate(container_cpu_usage_seconds_total{container!=\"\",image!=\"\"}[$__rate_interval]))", "legendFormat": "{{namespace}}"}]
+              },
+              {
+                "id": 6,
+                "type": "timeseries",
+                "title": "Memory working set by namespace",
+                "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "targets": [{"refId": "A", "expr": "sum by (namespace) (container_memory_working_set_bytes{container!=\"\",image!=\"\"})", "legendFormat": "{{namespace}}"}]
+              }
+            ]
+          }
+      telemetry-pipeline:
+        json: |
+          {
+            "title": "Platform / Telemetry Pipeline",
+            "uid": "platform-telemetry-pipeline",
+            "schemaVersion": 39,
+            "tags": ["platform", "metrics", "logs", "traces", "telemetry"],
+            "timezone": "browser",
+            "time": {"from": "now-6h", "to": "now"},
+            "templating": {"list": [{"name": "datasource", "label": "Metrics datasource", "type": "datasource", "query": "prometheus"}]},
+            "panels": [
+              {
+                "id": 1,
+                "type": "timeseries",
+                "title": "Observability target health",
+                "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "targets": [{"refId": "A", "expr": "sum by (job) (up{namespace=\"observability\"})", "legendFormat": "{{job}}"}]
+              },
+              {
+                "id": 2,
+                "type": "timeseries",
+                "title": "Scrape samples from shared OTel Collector",
+                "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "targets": [{"refId": "A", "expr": "sum by (instance) (scrape_samples_scraped{job=\"otel-collector\"})", "legendFormat": "{{instance}}"}]
+              },
+              {
+                "id": 3,
+                "type": "timeseries",
+                "title": "Loki ingest rate",
+                "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8},
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "targets": [{"refId": "A", "expr": "sum(rate(loki_distributor_bytes_received_total[$__rate_interval]))", "legendFormat": "bytes/s"}]
+              },
+              {
+                "id": 4,
+                "type": "timeseries",
+                "title": "Tempo ingest rate",
+                "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8},
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "targets": [{"refId": "A", "expr": "sum(rate(tempo_distributor_bytes_received_total[$__rate_interval]))", "legendFormat": "bytes/s"}]
+              },
+              {
+                "id": 5,
+                "type": "timeseries",
+                "title": "Dropped Tempo spans",
+                "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8},
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "targets": [{"refId": "A", "expr": "sum(rate(tempo_discarded_spans_total[$__rate_interval]))", "legendFormat": "{{reason}}"}]
+              }
+            ]
+          }
+      logs-and-events:
+        json: |
+          {
+            "title": "Platform / Logs and Events",
+            "uid": "platform-logs-events",
+            "schemaVersion": 39,
+            "tags": ["platform", "logs", "loki", "events"],
+            "timezone": "browser",
+            "time": {"from": "now-6h", "to": "now"},
+            "templating": {"list": [{"name": "namespace", "label": "Namespace", "type": "query", "datasource": {"type": "loki", "uid": "loki"}, "query": "label_values(namespace)", "includeAll": true, "allValue": ".*", "multi": true, "refresh": 2}]},
+            "panels": [
+              {
+                "id": 1,
+                "type": "logs",
+                "title": "Namespace logs",
+                "gridPos": {"h": 12, "w": 24, "x": 0, "y": 0},
+                "datasource": {"type": "loki", "uid": "loki"},
+                "targets": [{"refId": "A", "expr": "{namespace=~\"$namespace\"}", "queryType": "range"}],
+                "options": {"showTime": true, "wrapLogMessage": true, "sortOrder": "Descending"}
+              },
+              {
+                "id": 2,
+                "type": "timeseries",
+                "title": "Error and fatal log rate",
+                "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+                "datasource": {"type": "loki", "uid": "loki"},
+                "targets": [{"refId": "A", "expr": "sum by (namespace) (count_over_time({namespace=~\"$namespace\"} |~ \"(?i)(error|fatal|panic)\" [$__interval]))", "queryType": "range", "legendFormat": "{{namespace}}"}]
+              },
+              {
+                "id": 3,
+                "type": "timeseries",
+                "title": "Kubernetes warning event rate",
+                "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+                "datasource": {"type": "loki", "uid": "loki"},
+                "targets": [{"refId": "A", "expr": "sum by (namespace) (count_over_time({namespace=~\"$namespace\"} |~ \"(?i)warning\" [$__interval]))", "queryType": "range", "legendFormat": "{{namespace}}"}]
+              }
+            ]
+          }
+      traces-and-service-graph:
+        json: |
+          {
+            "title": "Platform / Traces and Service Graph",
+            "uid": "platform-traces-service-graph",
+            "schemaVersion": 39,
+            "tags": ["platform", "traces", "tempo", "service-graph"],
+            "timezone": "browser",
+            "time": {"from": "now-6h", "to": "now"},
+            "templating": {"list": [{"name": "datasource", "label": "Metrics datasource", "type": "datasource", "query": "prometheus"}]},
+            "panels": [
+              {
+                "id": 1,
+                "type": "timeseries",
+                "title": "Span metrics call rate",
+                "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "targets": [{"refId": "A", "expr": "sum by (service) (rate(traces_spanmetrics_calls_total[$__rate_interval]))", "legendFormat": "{{service}}"}]
+              },
+              {
+                "id": 2,
+                "type": "timeseries",
+                "title": "Service graph request rate",
+                "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "targets": [{"refId": "A", "expr": "sum by (client, server) (rate(traces_service_graph_request_total[$__rate_interval]))", "legendFormat": "{{client}} → {{server}}"}]
+              },
+              {
+                "id": 3,
+                "type": "timeseries",
+                "title": "Span metrics p95 latency",
+                "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+                "datasource": {"type": "prometheus", "uid": "${datasource}"},
+                "targets": [{"refId": "A", "expr": "histogram_quantile(0.95, sum by (le, service) (rate(traces_spanmetrics_latency_bucket[$__rate_interval])))", "legendFormat": "{{service}}"}]
+              },
+              {
+                "id": 4,
+                "type": "text",
+                "title": "Trace exploration",
+                "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+                "options": {"mode": "markdown", "content": "Use **Explore → Tempo** to search traces. Tempo is linked to Loki and Prometheus through the shared Grafana datasources, while these panels display its generated span and service-graph metrics when traffic is present."}
+              }
+            ]
+          }
 
 prometheusOperator:
   admissionWebhooks:
@@ -134,6 +334,22 @@ prometheusOperator:
       enabled: true
 
 prometheus:
+  # Scrape the Alloy operator that powers the shared Kubernetes log and event
+  # pipeline. Loki, Tempo, and the OTel Collector expose their own monitors in
+  # their component values below.
+  additionalServiceMonitors:
+    - name: k8s-monitoring-alloy-operator
+      namespaceSelector:
+        matchNames:
+          - observability
+      selector:
+        matchLabels:
+          app.kubernetes.io/instance: k8s-monitoring
+          app.kubernetes.io/name: alloy-operator
+      endpoints:
+        - port: metrics
+          path: /metrics
+          interval: 30s
   prometheusSpec:
     retention: 15d
     serviceMonitorSelectorNilUsesHelmValues: false
@@ -156,3 +372,48 @@ prometheus:
           resources:
             requests:
               storage: 20Gi
+
+# Platform-owned recording and alerting rules use only standard backend and
+# Kubernetes metrics. Workload-specific alerting belongs with each workload.
+additionalPrometheusRulesMap:
+  platform-observability:
+    groups:
+      - name: platform.observability.recording
+        rules:
+          - record: platform:observability_targets_up:sum
+            expr: sum(up{namespace="observability"})
+          - record: platform:tempo_ingest_bytes_per_second:rate5m
+            expr: sum(rate(tempo_distributor_bytes_received_total[5m]))
+          - record: platform:loki_ingest_bytes_per_second:rate5m
+            expr: sum(rate(loki_distributor_bytes_received_total[5m]))
+      - name: platform.observability.alerts
+        rules:
+          - alert: PlatformObservabilityTargetDown
+            # Loki namespaces its job label (for example, observability/loki),
+            # so match each platform component anywhere in the job value.
+            expr: up{namespace="observability",job=~".*(otel-collector|loki|tempo|alloy-operator).*"} == 0
+            for: 10m
+            labels:
+              severity: warning
+              component: observability
+            annotations:
+              summary: "An observability target is unavailable"
+              description: "{{ $labels.job }} has been unreachable by Prometheus for at least 10 minutes."
+          - alert: PlatformTempoDiscardingSpans
+            expr: sum(rate(tempo_discarded_spans_total[5m])) > 0
+            for: 10m
+            labels:
+              severity: warning
+              component: observability
+            annotations:
+              summary: "Tempo is discarding spans"
+              description: "Tempo has discarded spans for at least 10 minutes; inspect trace limits and ingestion health."
+          - alert: PlatformLokiServerErrors
+            expr: sum(rate(loki_request_duration_seconds_count{status_code=~"5.."}[5m])) > 0
+            for: 10m
+            labels:
+              severity: warning
+              component: observability
+            annotations:
+              summary: "Loki is returning server errors"
+              description: "Loki has returned HTTP 5xx responses for at least 10 minutes."

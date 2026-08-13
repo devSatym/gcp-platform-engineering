@@ -59,3 +59,22 @@ chunksCache:
   enabled: false
 resultsCache:
   enabled: false
+
+# Self-observability is platform-owned. The dashboards are discovered by the
+# shared Grafana sidecar, while metrics and rules are evaluated by the shared
+# Prometheus instance.
+monitoring:
+  dashboards:
+    enabled: true
+    namespace: observability
+    labels:
+      grafana_dashboard: "1"
+  rules:
+    enabled: true
+    labels:
+      release: kube-prometheus-stack
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: kube-prometheus-stack
+    interval: 30s
