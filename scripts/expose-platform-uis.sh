@@ -147,6 +147,14 @@ start_port_forward() {
     return 0
   fi
 
+  # Do this before starting kubectl. Without the preflight check, an existing
+  # listener could make the readiness probe below appear successful even though
+  # this port-forward failed to bind its requested local port.
+  if (exec 3<>"/dev/tcp/127.0.0.1/${local_port}") 2>/dev/null; then
+    unavailable+=("${display_name} (localhost port ${local_port} is already in use)")
+    return 0
+  fi
+
   local log_file
   log_file="$(mktemp -t "${id}.XXXXXX.log")"
 
