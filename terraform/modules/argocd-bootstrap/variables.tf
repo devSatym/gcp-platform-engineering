@@ -48,7 +48,7 @@ variable "external_secrets_sa_email" {
 variable "argocd_chart_version" {
   description = "ArgoCD Helm chart version to install. Pin to a known stable version."
   type        = string
-  default     = "7.7.10"
+  default     = "10.3.3"
 }
 
 variable "git_repo_url" {

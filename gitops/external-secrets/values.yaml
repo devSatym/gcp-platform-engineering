@@ -3,7 +3,8 @@ serviceAccount:
   create: true
   name: external-secrets
   annotations:
-    iam.gke.io/gcp-service-account: "sa-external-secrets@replace-with-project-id.iam.gserviceaccount.com"
+    # Must match the Terraform-managed GSA bound to this KSA through WIF.
+    iam.gke.io/gcp-service-account: "sa-external-secrets@valiant-house-502004-k2.iam.gserviceaccount.com"
 tolerations:
   - key: workload
     operator: Equal

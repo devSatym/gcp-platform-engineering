@@ -57,6 +57,9 @@ spec:
         syncOptions:
           - CreateNamespace=true
           - ServerSideApply=true
+          # CRD-owning charts and their custom resources can be installed in
+          # one reconciliation without a first-sync dry-run race.
+          - SkipDryRunOnMissingResource=true
         retry:
           limit: 5
           backoff:

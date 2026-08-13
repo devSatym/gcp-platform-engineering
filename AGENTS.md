@@ -1,74 +1,75 @@
-Using the architecture defined in docs/REUSABILITY_AUDIT.md, create a repository-root AGENTS.md.
+# DevSecOps platform contribution guide
 
-The AGENTS.md must permanently instruct future coding agents that this is a reusable DevSecOps platform rather than an generic workload deployment platform.
+This repository implements a reusable DevSecOps platform. It is not a generic
+workload deployment repository, and platform code must not become coupled to a
+specific application. Workloads own their charts, application code, values, and
+workload-specific dashboards; the platform owns shared infrastructure, policy,
+observability, and GitOps orchestration.
 
-Include rules for:
+## Working method
 
-Terraform:
+Always follow: **inspect → plan → modify → validate → summarize**. Preserve
+unrelated worktree changes and make the smallest cohesive change that resolves
+the issue.
 
-reusable modules
-typed variables
-variable validation
-outputs
-no environment-specific constants
-provider version constraints
-terraform fmt
-terraform validate
-optional tflint support
+## Terraform
 
-Kubernetes:
+- Build reusable modules with typed input variables, descriptions, validation,
+  and useful outputs.
+- Keep environment-specific values in environment configuration; do not embed
+  environment constants in reusable modules.
+- Pin provider versions with compatible version constraints.
+- Run `terraform fmt` and `terraform validate` for changed roots. Run TFLint
+  when it is available and relevant.
+- Terraform owns cloud infrastructure and the minimal Argo CD bootstrap only;
+  ordinary Kubernetes workloads belong to GitOps.
 
-workload independence
-securityContext
-probes
-resource limits
-NetworkPolicies where appropriate
-PodDisruptionBudgets where applicable
-namespaces from configuration
+## Kubernetes and Helm
 
-Helm:
+- Keep workloads independent from platform implementation details.
+- Workload manifests and charts must use configured namespaces, security
+  contexts, probes, and resource requests and limits.
+- Add NetworkPolicies where traffic boundaries warrant them and
+  PodDisruptionBudgets where availability requirements and replica counts make
+  them meaningful.
+- Keep third-party charts external where possible and customize them through
+  values.
+- Workload charts and values remain workload-owned. Platform charts and shared
+  configuration remain platform-owned.
 
-external charts should remain external where possible
-values-based customization
-workload charts remain workload-owned
-platform charts/config remain platform-owned
+## Argo CD and GitOps
 
-ArgoCD:
+- Git is the source of truth for Kubernetes resources.
+- Prefer ApplicationSets for repeated workload or environment generation; do
+  not duplicate Applications without a documented reason.
+- Use sync waves for dependencies such as CRDs, operators, and consumers.
+- Make automated sync, prune, and self-heal settings intentional and
+  environment-appropriate.
 
-GitOps is source of truth
-ApplicationSets preferred for repeated environment/workload generation
-no duplicated Applications unless justified
-sync waves for dependencies
-automated sync behavior must be intentional
+## Security
 
-Security:
+- Apply least privilege and never commit credentials.
+- Do not create or use long-lived GCP service-account keys; use Workload
+  Identity Federation where possible.
+- Keep Kyverno policies reusable and apply stricter production policy where
+  practical.
+- Preserve CI support for image scanning, SBOM generation, and image signing.
 
-least privilege
-no credentials
-no long-lived GCP service account keys
-WIF preferred
-Kyverno policies reusable
-CI image/SBOM scanning
-image signing support
-production policy stricter than development where reasonable
+## Observability
 
-Observability:
+- Keep the metrics, logs, traces, and dashboard stack platform-owned and
+  workload-independent.
+- Workloads integrate through standard metrics, logs, and OTLP interfaces and
+  standard telemetry conventions.
+- Do not hardcode workload identity in shared dashboards when a label- or
+  variable-driven view can be used.
 
-platform-level stack independent from workloads
-workload integration based on standard metrics/logs/traces interfaces
-standard telemetry conventions
-dashboards must avoid hardcoded workload identity where possible
+## Safety
 
-Safety:
 Never automatically execute:
 
-terraform apply
-terraform destroy
-kubectl delete
-helm uninstall
-gcloud project deletion
-IAM destructive changes
-git push --force
-
-Working method:
-inspect → plan → modify → validate → summarize
+- `terraform apply` or `terraform destroy`
+- `kubectl delete`
+- `helm uninstall`
+- GCP project deletion or destructive IAM changes
+- `git push --force`

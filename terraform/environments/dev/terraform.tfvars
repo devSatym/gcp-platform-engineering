@@ -81,7 +81,9 @@ platform_config = {
   artifact_registry = { repository_id = "dev-images" }
   github            = { repository = "devSatym/gcp-platform-engineering" }
   argocd = {
-    chart_version = "7.8.26"
+    # Argo CD v3 supports the Kubernetes 1.35 API schema used by this GKE
+    # cluster. Apply this Terraform upgrade through the normal reviewed flow.
+    chart_version = "10.3.3"
     git_repo_url  = "https://github.com/devSatym/gcp-platform-engineering.git"
   }
 }

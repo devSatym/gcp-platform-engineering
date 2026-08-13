@@ -19,6 +19,13 @@ server:
     name: argocd-server
     annotations:
       iam.gke.io/gcp-service-account: "${argocd_sa_email}"
+  tolerations:
+    - key: "workload"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  nodeSelector:
+    workload: system
 
 ## ─── Repo Server ─────────────────────────────────────────────────────────────
 repoServer:
@@ -29,14 +36,35 @@ repoServer:
     name: argocd-repo-server
     annotations:
       iam.gke.io/gcp-service-account: "${argocd_sa_email}"
+  tolerations:
+    - key: "workload"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  nodeSelector:
+    workload: system
 
 ## ─── Application Controller ──────────────────────────────────────────────────
 controller:
   replicas: 1
+  tolerations:
+    - key: "workload"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  nodeSelector:
+    workload: system
 
 ## ─── Application Set Controller ─────────────────────────────────────────────
 applicationSet:
   replicas: 1
+  tolerations:
+    - key: "workload"
+      operator: "Equal"
+      value: "system"
+      effect: "NoSchedule"
+  nodeSelector:
+    workload: system
 
 ## ─── Core configuration ──────────────────────────────────────────────────────
 configs:
@@ -45,6 +73,9 @@ configs:
   params:
     application.resourceTrackingMethod: annotation+label
     server.insecure: true  # Required when using --insecure flag above
+    # Use the Kubernetes API server for diffing. This supports fields added by
+    # newer GKE releases without embedding a stale schema in the controller.
+    controller.diff.server.side: true
 
   # ─── Repository credentials ─────────────────────────────────────────────────
   # ArgoCD needs read access to the monorepo to sync application manifests.
@@ -144,44 +175,7 @@ notifications:
       - when: app.status.operationState.phase in ['Succeeded'] and app.status.health.status == 'Healthy'
         send: [app-deployed]
 
-## ─── Node scheduling ──────────────────────────────────────────────────────────
-# ArgoCD components run on the system node pool (platform-critical).
-server:
-  tolerations:
-    - key: "workload"
-      operator: "Equal"
-      value: "system"
-      effect: "NoSchedule"
-  nodeSelector:
-    workload: system
-
-repoServer:
-  tolerations:
-    - key: "workload"
-      operator: "Equal"
-      value: "system"
-      effect: "NoSchedule"
-  nodeSelector:
-    workload: system
-
-controller:
-  tolerations:
-    - key: "workload"
-      operator: "Equal"
-      value: "system"
-      effect: "NoSchedule"
-  nodeSelector:
-    workload: system
-
-applicationSet:
-  tolerations:
-    - key: "workload"
-      operator: "Equal"
-      value: "system"
-      effect: "NoSchedule"
-  nodeSelector:
-    workload: system
-
+# Argo CD components run on the system node pool (platform-critical).
 redis:
   tolerations:
     - key: "workload"

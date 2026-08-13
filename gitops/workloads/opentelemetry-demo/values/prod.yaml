@@ -8,9 +8,14 @@
 #   - 3 replicas for Tier 1 (one per zone — zone HA)
 #   - Pod anti-affinity to spread replicas across zones
 #   - Load generator DISABLED — enable only for controlled production tests
-#   - Full persistence for Prometheus and Grafana
+#   - Shared platform observability; no duplicate embedded stack
 #   - Warning/Error log level only
 # =============================================================================
+
+default:
+  envOverrides:
+    - name: OTEL_RESOURCE_ATTRIBUTES
+      value: "deployment.environment.name=prod,service.namespace=opentelemetry-demo"
 
 components:
   # ═══════════════════════════════════════════════════════════════════════════
@@ -96,34 +101,4 @@ components:
   kafka:
     replicas: 1  # Single-node for cost control — Phase 8 considers multi-broker
 
-# ─── Observability sub-charts — full persistence in prod ─────────────────────
-
-grafana:
-  enabled: true
-  persistence:
-    enabled: true
-    size: 20Gi
-    storageClassName: standard-rwo
-
-jaeger:
-  enabled: true
-  allInOne:
-    resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
-      limits:
-        cpu: 500m
-        memory: 1Gi
-
-prometheus:
-  enabled: true
-  server:
-    persistentVolume:
-      enabled: true
-      size: 50Gi   # Retain 30 days of metrics in prod
-      storageClassName: standard-rwo
-    retention: "30d"
-
-opensearch:
-  enabled: false  # Enable in Phase 8 when log pipeline is fully configured
+# Shared platform observability is inherited from base.yaml.

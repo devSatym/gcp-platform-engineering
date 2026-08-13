@@ -7,10 +7,14 @@
 # Key characteristics:
 #   - Single replica for all services (no HA needed in dev)
 #   - Load generator ENABLED — generates traffic for observability
-#   - Observability sub-charts ENABLED only here (disabled in base.yaml
-#     to prevent ClusterRole naming conflicts across environments)
-#   - Minimal resource requests to fit on 2× e2-standard-4 nodes
+#   - Shared platform observability; no duplicate embedded stack
+#   - Minimal resource requests to fit on 2× e2-standard-2 nodes
 # =============================================================================
+
+default:
+  envOverrides:
+    - name: OTEL_RESOURCE_ATTRIBUTES
+      value: "deployment.environment.name=dev,service.namespace=opentelemetry-demo"
 
 components:
   # ─── Tier 1 — single replicas in dev ─────────────────────────────────────
@@ -62,57 +66,5 @@ components:
   kafka:
     replicas: 1
 
-# ─── Observability Sub-charts — enabled for dev ONLY ─────────────────────────
-# Re-enables what base.yaml disables. Only deployed in this single dev
-# environment to avoid ClusterRole name collisions across environments.
-# Resources are lean to fit within 2× e2-standard-4 node capacity.
-
-opentelemetry-collector:
-  enabled: true
-  resources:
-    requests:
-      cpu: 50m
-      memory: 128Mi
-    limits:
-      cpu: 200m
-      memory: 256Mi
-
-prometheus:
-  enabled: true
-  server:
-    resources:
-      requests:
-        cpu: 50m
-        memory: 256Mi
-      limits:
-        cpu: 200m
-        memory: 512Mi
-    persistentVolume:
-      enabled: false   # No persistence in dev — saves cost and PVC provisioning time
-
-grafana:
-  enabled: true
-  resources:
-    requests:
-      cpu: 25m
-      memory: 64Mi
-    limits:
-      cpu: 100m
-      memory: 256Mi
-  persistence:
-    enabled: false     # Stateless in dev — dashboards reload from configmaps
-  # Configure the chart admin secret through External Secrets.
-
-jaeger:
-  enabled: true
-  allInOne:
-    resources:
-      requests:
-        cpu: 25m
-        memory: 64Mi
-      limits:
-        cpu: 100m
-        memory: 256Mi
-
-opensearch:
-  enabled: false  # Too heavy (~1GB RAM) for dev nodes
+# The shared platform stack is configured in gitops/{kube-prometheus-stack,
+# loki,tempo,otel-collector}; the base values keep upstream sub-charts disabled.

@@ -36,8 +36,10 @@ default:
       valueFrom:
         fieldRef:
           fieldPath: metadata.labels['app.kubernetes.io/component']
+    - name: OTEL_COLLECTOR_NAME
+      value: "otel-collector.observability.svc.cluster.local"
     - name: OTEL_RESOURCE_ATTRIBUTES
-      value: "deployment.environment=$(DEPLOYMENT_ENV),k8s.cluster.name=$(CLUSTER_NAME)"
+      value: "service.namespace=opentelemetry-demo"
 
 # ─── Components ───────────────────────────────────────────────────────────────
 # All component names use kebab-case as required by the chart schema (v0.40.9+).
@@ -314,15 +316,11 @@ components:
         workload: general
 
 # ─── Observability Sub-charts ──────────────────────────────────────────────────
-# DISABLED at base level — enabled only in dev.yaml.
+# DISABLED at base level. The platform owns shared Grafana, Prometheus, Loki,
+# Tempo, and the OTLP collector; the workload exports telemetry to that stack.
 #
-# These sub-charts install cluster-scoped ClusterRoles with FIXED names
-# (grafana-clusterrole, otel-collector, prometheus). On a single cluster,
-# deploying these to multiple environments creates SharedResourceWarning
-# conflicts — ArgoCD marks all but the first environment as Degraded.
-#
-# Phase 8 will move these to dedicated ArgoCD Applications in the
-# observability project with proper cluster-scoped resource isolation.
+# Enabling upstream observability sub-charts duplicates cluster-scoped
+# resources, dashboard UIs, and resource requests on the shared cluster.
 
 opentelemetry-collector:
   enabled: false
@@ -338,4 +336,3 @@ jaeger:
 
 opensearch:
   enabled: false
-

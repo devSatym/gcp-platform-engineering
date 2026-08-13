@@ -3,9 +3,12 @@
 # encoded in the platform configuration.
 mode: deployment
 replicaCount: 2
+fullnameOverride: otel-collector
 
 image:
-  repository: otel/opentelemetry-collector-k8s
+  # The shared pipeline uses the Prometheus exporter, which is packaged in the
+  # contrib distribution rather than the minimal Kubernetes distribution.
+  repository: otel/opentelemetry-collector-contrib
 
 presets:
   kubernetesAttributes:

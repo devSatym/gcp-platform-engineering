@@ -8,8 +8,13 @@
 #   - 2 replicas for Tier 1 services (basic HA validation)
 #   - PDBs on Tier 1 (minAvailable: 1 — tolerate 1 pod down)
 #   - Load generator enabled for realistic load testing
-#   - Full observability stack enabled with persistence
+#   - Shared platform observability; no duplicate embedded stack
 # =============================================================================
+
+default:
+  envOverrides:
+    - name: OTEL_RESOURCE_ATTRIBUTES
+      value: "deployment.environment.name=staging,service.namespace=opentelemetry-demo"
 
 components:
   # Tier 1 — 2 replicas for HA validation
@@ -58,7 +63,7 @@ components:
       - name: LOCUST_USERS
         value: "50"  # 50 concurrent users — realistic load test
       - name: LOCUST_HOST
-        value: "http://otel-demo-frontend-proxy:8080"
+        value: "http://frontend-proxy:8080"
 
   # Data stores
   valkey-cart:
@@ -66,22 +71,4 @@ components:
   kafka:
     replicas: 1
 
-# Observability — all enabled in staging
-grafana:
-  enabled: true
-  persistence:
-    enabled: true
-    size: 5Gi
-
-jaeger:
-  enabled: true
-
-prometheus:
-  enabled: true
-  server:
-    persistentVolume:
-      enabled: true
-      size: 20Gi
-
-opensearch:
-  enabled: false  # Enable when log pipeline is configured in Phase 8
+# Shared platform observability is inherited from base.yaml.
