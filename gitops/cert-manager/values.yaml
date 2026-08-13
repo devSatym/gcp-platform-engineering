@@ -1,0 +1,62 @@
+# Shared certificate controller for platform components. Certificate issuers
+# and certificates remain workload or platform component configuration.
+crds:
+  enabled: true
+
+# The chart's post-install startup check is implemented as multiple Helm hook
+# resources. Argo CD handles controller readiness directly, so omit that hook.
+startupapicheck:
+  enabled: false
+
+global:
+  leaderElection:
+    namespace: kube-system
+
+nodeSelector:
+  workload: system
+
+tolerations:
+  - key: workload
+    operator: Equal
+    value: system
+    effect: NoSchedule
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+webhook:
+  nodeSelector:
+    workload: system
+  tolerations:
+    - key: workload
+      operator: Equal
+      value: system
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+cainjector:
+  nodeSelector:
+    workload: system
+  tolerations:
+    - key: workload
+      operator: Equal
+      value: system
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi

@@ -1,0 +1,11 @@
+component:
+  name: cert-manager
+  namespace: cert-manager
+  # Certificate CRDs and the controller must be available before components
+  # that request Certificate resources.
+  syncWave: "-1"
+  source:
+    repoURL: https://charts.jetstack.io
+    chart: cert-manager
+    targetRevision: "v1.21.1"
+  values: gitops/cert-manager/values.yaml

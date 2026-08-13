@@ -22,6 +22,7 @@ grafana:
     limits:
       cpu: 500m
       memory: 512Mi
+
   additionalDataSources:
     - name: Loki
       uid: loki
@@ -122,6 +123,15 @@ grafana:
               }
             ]
           }
+
+prometheusOperator:
+  admissionWebhooks:
+    # Avoid Helm's multi-resource certificate patch hooks, which Argo CD cannot
+    # lifecycle as one hook. cert-manager creates and injects the serving CA.
+    patch:
+      enabled: false
+    certManager:
+      enabled: true
 
 prometheus:
   prometheusSpec:
