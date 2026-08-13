@@ -11,10 +11,13 @@ spec:
     - missingkey=error
   generators:
     - git:
-        repoURL: https://github.com/replace-with-owner/replace-with-repository.git
+        repoURL: https://github.com/devSatym/gcp-platform-engineering.git
         revision: main
         files:
-          - path: gitops/environments/*/config.yaml
+          # This Argo CD instance manages the dev cluster only. Add another
+          # cluster registration and a dedicated ApplicationSet before
+          # enabling staging or production here.
+          - path: gitops/environments/dev/config.yaml
   template:
     metadata:
       name: "platform-core-{{.environment.name}}"

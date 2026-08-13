@@ -1,5 +1,5 @@
 # ArgoCD projects define the ownership boundary between platform services and
-# arbitrary workloads. The repository URL is intentionally a placeholder.
+# arbitrary workloads.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
@@ -11,7 +11,7 @@ metadata:
 spec:
   description: Shared cluster services managed by the platform team.
   sourceRepos:
-    - https://github.com/replace-with-owner/replace-with-repository.git
+    - https://github.com/devSatym/gcp-platform-engineering.git
     - https://charts.external-secrets.io
     - https://kubernetes-sigs.github.io/metrics-server
     - https://prometheus-community.github.io/helm-charts
@@ -41,7 +41,7 @@ metadata:
 spec:
   description: Arbitrary Helm-based microservice workloads.
   sourceRepos:
-    - https://github.com/replace-with-owner/replace-with-repository.git
+    - https://github.com/devSatym/gcp-platform-engineering.git
     - '*'
   destinations:
     - namespace: '*'
@@ -67,7 +67,7 @@ metadata:
 spec:
   description: ArgoCD bootstrap resources only.
   sourceRepos:
-    - https://github.com/replace-with-owner/replace-with-repository.git
+    - https://github.com/devSatym/gcp-platform-engineering.git
   destinations:
     - namespace: argocd
       server: '*'

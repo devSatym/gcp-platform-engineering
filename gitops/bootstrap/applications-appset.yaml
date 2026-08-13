@@ -13,15 +13,17 @@ spec:
     - matrix:
         generators:
           - git:
-              repoURL: https://github.com/replace-with-owner/replace-with-repository.git
+              repoURL: https://github.com/devSatym/gcp-platform-engineering.git
               revision: main
               files:
                 - path: gitops/workloads/*/workload.yaml
           - git:
-              repoURL: https://github.com/replace-with-owner/replace-with-repository.git
+              repoURL: https://github.com/devSatym/gcp-platform-engineering.git
               revision: main
               files:
-                - path: gitops/environments/*/config.yaml
+                # This Argo CD instance manages the dev cluster only. Add
+                # dedicated cluster registration before enabling other files.
+                - path: gitops/environments/dev/config.yaml
   template:
     metadata:
       name: "{{.workload.name}}-{{.environment.name}}"

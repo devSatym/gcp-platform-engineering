@@ -1,7 +1,7 @@
 environment:
   name: prod
   server: https://replace-with-prod-cluster-endpoint
-  gitopsRepository: https://github.com/replace-with-owner/replace-with-repository.git
+  gitopsRepository: https://github.com/devSatym/gcp-platform-engineering.git
   policy:
     automatedSync: false
     prune: false

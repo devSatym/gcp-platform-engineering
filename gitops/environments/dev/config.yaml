@@ -2,7 +2,7 @@ environment:
   name: dev
   # The in-cluster API is used when ArgoCD runs in this environment's cluster.
   server: https://kubernetes.default.svc
-  gitopsRepository: https://github.com/replace-with-github-owner/replace-with-repository.git
+  gitopsRepository: https://github.com/devSatym/gcp-platform-engineering.git
   policy:
     automatedSync: true
     prune: true
