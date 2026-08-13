@@ -31,6 +31,27 @@ variable "cluster_location" {
   type        = string
 }
 
+variable "environment" {
+  description = "GitOps environment name whose generated Applications must converge after bootstrap."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9-]{0,61}[a-z0-9]$", var.environment))
+    error_message = "environment must be a lowercase DNS-style identifier."
+  }
+}
+
+variable "gitops_ready_timeout_seconds" {
+  description = "Maximum time Terraform waits for Argo CD to reconcile generated platform and workload Applications."
+  type        = number
+  default     = 1800
+
+  validation {
+    condition     = var.gitops_ready_timeout_seconds >= 300 && var.gitops_ready_timeout_seconds <= 3600
+    error_message = "gitops_ready_timeout_seconds must be between 300 and 3600 seconds."
+  }
+}
+
 # ─── Service accounts (from Phase 2 service-accounts module outputs) ──────────
 
 variable "argocd_sa_email" {

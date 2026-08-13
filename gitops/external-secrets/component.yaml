@@ -7,3 +7,8 @@ component:
     chart: external-secrets
     targetRevision: "0.12.1"
   values: gitops/external-secrets/values.yaml
+  # The GSA identity belongs to each environment. The platform ApplicationSet
+  # renders this Helm parameter from environment.workloadIdentity.
+  helmParameters:
+    - name: serviceAccount.annotations.iam\\.gke\\.io/gcp-service-account
+      environmentValue: externalSecretsServiceAccount

@@ -62,6 +62,17 @@ resource "helm_release" "argocd" {
 # cluster during `terraform plan` — before the cluster exists.
 # null_resource + local-exec only runs during `terraform apply`, after the GKE
 # cluster and ArgoCD helm_release are fully up.
+locals {
+  # A Terraform apply must report success only after the GitOps revision it
+  # bootstraps has converged. Hash every GitOps input so a later apply also
+  # re-runs the read-only readiness check when platform configuration changes.
+  gitops_root       = abspath("${path.module}/../../../gitops")
+  gitops_configured = sort(fileset(local.gitops_root, "**"))
+  gitops_config_hash = sha256(join("", [
+    for file in local.gitops_configured : "${file}:${filesha256("${local.gitops_root}/${file}")}"
+  ]))
+}
+
 resource "null_resource" "root_application" {
   triggers = {
     # Re-apply if the manifest template content changes
@@ -81,11 +92,20 @@ resource "null_resource" "root_application" {
         --location=${var.cluster_location} \
         --project=${var.project_id}
 
-      # Wait for the GKE API server to fully accept connections.
-      # The cluster endpoint takes ~30s after Helm install before it reliably
-      # responds to kubectl — this prevents TLS handshake timeout errors.
-      echo "Waiting 30s for Kubernetes API server to be ready..."
-      sleep 30
+      # Wait for the GKE API server to fully accept connections. A probe is
+      # deterministic; a fixed sleep can be too short on a fresh control plane
+      # and unnecessarily slow on a warm one.
+      echo "Waiting for the Kubernetes API server to be ready..."
+      for attempt in $(seq 1 60); do
+        if kubectl version --request-timeout=10s >/dev/null 2>&1; then
+          break
+        fi
+        if [ "$${attempt}" -eq 60 ]; then
+          echo "Kubernetes API did not become ready within five minutes." >&2
+          exit 1
+        fi
+        sleep 5
+      done
 
       # STEP 1: Apply AppProjects FIRST (breaks the bootstrap chicken-and-egg).
       # ArgoCD rejects any Application whose project doesn't exist yet.
@@ -93,8 +113,17 @@ resource "null_resource" "root_application" {
       echo "Applying ArgoCD AppProjects..."
       kubectl apply --server-side --force-conflicts --validate=false \
         -f "${path.module}/../../../gitops/projects/projects.yaml"
-      echo "Waiting for AppProjects to be registered..."
-      sleep 5
+      for attempt in $(seq 1 30); do
+        if kubectl -n argocd get appproject platform >/dev/null 2>&1 && \
+          kubectl -n argocd get appproject workloads >/dev/null 2>&1; then
+          break
+        fi
+        if [ "$${attempt}" -eq 30 ]; then
+          echo "Argo CD AppProjects were not registered within 150 seconds." >&2
+          exit 1
+        fi
+        sleep 5
+      done
 
       # STEP 2: Apply the root Application (App of Apps).
       # Root app uses project: default (always exists). Child apps discovered
@@ -108,7 +137,29 @@ MANIFEST
     EOT
 }
 
-depends_on = [helm_release.argocd]
+depends_on = [
+  helm_release.argocd,
+  google_service_account_iam_member.argocd_wi,
+  google_service_account_iam_member.argocd_repo_server_wi,
+  google_service_account_iam_member.external_secrets_wi,
+]
+}
+
+# The final bootstrap gate is deliberately read-only. It makes a successful
+# Terraform apply meaningful: all Applications generated from GitOps contracts
+# have reached Synced/Healthy, including the observability dashboard check.
+resource "null_resource" "gitops_convergence" {
+  triggers = {
+    root_application_id = null_resource.root_application.id
+    gitops_config_hash  = local.gitops_config_hash
+    environment         = var.environment
+  }
+
+  provisioner "local-exec" {
+    command = "bash '${path.module}/../../../scripts/wait-for-gitops-convergence.sh' --environment '${var.environment}' --timeout '${var.gitops_ready_timeout_seconds}'"
+  }
+
+  depends_on = [null_resource.root_application]
 }
 
 # ─────────────────────────────────────────────────────────────────────────────

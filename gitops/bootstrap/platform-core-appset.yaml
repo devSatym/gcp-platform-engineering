@@ -38,8 +38,13 @@ spec:
         server: "{{.environment.server}}"
         namespace: platform-system
       syncPolicy:
-        automated:
-          prune: true
-          selfHeal: true
         syncOptions:
           - ServerSideApply=true
+  templatePatch: |
+    {{- if .environment.policy.automatedSync }}
+    spec:
+      syncPolicy:
+        automated:
+          prune: {{.environment.policy.prune}}
+          selfHeal: {{.environment.policy.selfHeal}}
+    {{- end }}

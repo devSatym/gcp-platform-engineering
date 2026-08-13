@@ -16,6 +16,7 @@ module "argocd_bootstrap" {
   cluster_endpoint          = module.platform.cluster_endpoint
   cluster_ca_certificate    = module.platform.cluster_ca_certificate
   cluster_location          = module.platform.cluster_location
+  environment               = var.platform_config.environment
   argocd_sa_email           = module.platform.argocd_sa_email
   external_secrets_sa_email = module.platform.external_secrets_sa_email
   argocd_chart_version      = var.platform_config.argocd.chart_version

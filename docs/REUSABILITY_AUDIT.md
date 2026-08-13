@@ -156,7 +156,7 @@ The following catalog covers hardcoded values in executable/platform configurati
 - Renovate assignee/reviewer `devSatym` is hardcoded in `renovate.json`.
 - Terraform labels hardcode `team = "platform"`, `project = "otel-demo"`, `managed-by = "terraform"`, and `owner = "satyam"`.
 - Service-account IDs are fixed as `sa-gke-nodes`, `sa-argocd`, `sa-external-secrets`, `sa-github-actions`, and bootstrap `sa-terraform`.
-- The Terraform state bucket convention is `${PROJECT_ID}-tf-state`; backend prefixes are fixed as `dev/foundation`, `stage/foundation`, and `prod/foundation`.
+- The Terraform state bucket convention is `${PROJECT_ID}-tfstate`; backend prefixes are fixed as `dev/foundation`, `stage/foundation`, and `prod/foundation`.
 
 ### Environment, region, cluster, and repository defaults
 
@@ -454,4 +454,3 @@ The platform refactor should not be considered complete until all of the followi
 8. Metrics, logs, traces, Prometheus, Grafana, Loki, and the OpenTelemetry Collector are platform services with workload-neutral integration points.
 9. CI runs Terraform format/validate, Helm lint/template, YAML lint, client-side Kubernetes dry-run, contract validation, policy tests, secret scanning, and relevant image security checks.
 10. No destructive command, Terraform apply, cluster deletion, or uninstall is part of the migration automation.
-

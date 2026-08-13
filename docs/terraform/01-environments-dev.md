@@ -24,7 +24,7 @@
 ```hcl
 terraform {
   backend "gcs" {
-    bucket = "valiant-house-502004-k2-tf-state"
+    bucket = "valiant-house-502004-k2-tfstate"
     prefix = "dev/foundation"   # State stored at gs://bucket/dev/foundation/default.tfstate
   }
 }

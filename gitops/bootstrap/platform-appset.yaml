@@ -55,9 +55,6 @@ spec:
         server: "{{.environment.server}}"
         namespace: "{{.component.namespace}}"
       syncPolicy:
-        automated:
-          prune: true
-          selfHeal: true
         syncOptions:
           - CreateNamespace=true
           - ServerSideApply=true
@@ -77,8 +74,33 @@ spec:
   # Conditional fields belong in templatePatch so the ApplicationSet itself
   # remains valid YAML before its Go template is rendered.
   templatePatch: |
-    {{- with (index .component "ignoreDifferences") }}
     spec:
+      sources:
+        - repoURL: "{{.component.source.repoURL}}"
+          chart: "{{.component.source.chart}}"
+          targetRevision: "{{.component.source.targetRevision}}"
+          helm:
+            releaseName: "{{.component.name}}"
+            valueFiles:
+              - "$values/{{.component.values}}"
+            {{- with (index .component "helmParameters") }}
+            parameters:
+              {{- range . }}
+              - name: "{{.name}}"
+                value: "{{index $.environment.workloadIdentity .environmentValue}}"
+                forceString: true
+              {{- end }}
+            {{- end }}
+        - repoURL: "{{.environment.gitopsRepository}}"
+          targetRevision: main
+          ref: values
+      {{- if .environment.policy.automatedSync }}
+      syncPolicy:
+        automated:
+          prune: {{.environment.policy.prune}}
+          selfHeal: {{.environment.policy.selfHeal}}
+      {{- end }}
+      {{- with (index .component "ignoreDifferences") }}
       ignoreDifferences:
         {{- range . }}
         - group: "{{ .group }}"
@@ -90,4 +112,4 @@ spec:
             - "{{ . }}"
             {{- end }}
         {{- end }}
-    {{- end }}
+      {{- end }}

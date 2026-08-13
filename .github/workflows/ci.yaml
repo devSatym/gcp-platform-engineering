@@ -47,6 +47,11 @@ jobs:
         run: |
           yamllint -c .yamllint.yaml gitops/ .github/workflows/
 
+      - name: Validate GitOps contracts
+        run: |
+          python3 scripts/validate-gitops-contracts.py
+          bash -n scripts/*.sh bootstrap/*.sh
+
       # Helm values validation
       - name: Install Helm
         uses: azure/setup-helm@v4

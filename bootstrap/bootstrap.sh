@@ -22,7 +22,9 @@ set -euo pipefail
 # ─────────────────────────────────────────────────────────────────────────────
 PROJECT_ID="${1:?Usage: $0 <project-id> <region>}"
 REGION="${2:?Usage: $0 <project-id> <region>}"
-TF_STATE_BUCKET="${PROJECT_ID}-tf-state"
+# Keep this convention aligned with the checked-in dev backend and the CI
+# backend-config input. Terraform backend blocks cannot read shell variables.
+TF_STATE_BUCKET="${PROJECT_ID}-tfstate"
 TF_SA_NAME="sa-terraform"
 TF_SA_EMAIL="${TF_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 

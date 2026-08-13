@@ -2,9 +2,6 @@ installCRDs: true
 serviceAccount:
   create: true
   name: external-secrets
-  annotations:
-    # Must match the Terraform-managed GSA bound to this KSA through WIF.
-    iam.gke.io/gcp-service-account: "sa-external-secrets@valiant-house-502004-k2.iam.gserviceaccount.com"
 tolerations:
   - key: workload
     operator: Equal

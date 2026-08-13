@@ -3,6 +3,10 @@ environment:
   # The in-cluster API is used when ArgoCD runs in this environment's cluster.
   server: https://kubernetes.default.svc
   gitopsRepository: https://github.com/devSatym/gcp-platform-engineering.git
+  workloadIdentity:
+    # This is environment configuration, not a shared chart constant. Terraform
+    # creates the matching GSA and KSA Workload Identity binding.
+    externalSecretsServiceAccount: sa-external-secrets@valiant-house-502004-k2.iam.gserviceaccount.com
   policy:
     automatedSync: true
     prune: true

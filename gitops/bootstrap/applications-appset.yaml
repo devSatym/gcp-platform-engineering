@@ -65,9 +65,6 @@ spec:
         server: "{{.environment.server}}"
         namespace: "{{(index .workload.destinations .environment.name).namespace}}"
       syncPolicy:
-        automated:
-          prune: true
-          selfHeal: true
         syncOptions:
           - CreateNamespace=true
           - ServerSideApply=true
@@ -91,5 +88,13 @@ spec:
           kind: Service
           jsonPointers:
             - /spec/clusterIPs
+  templatePatch: |
+    {{- if .environment.policy.automatedSync }}
+    spec:
+      syncPolicy:
+        automated:
+          prune: {{.environment.policy.prune}}
+          selfHeal: {{.environment.policy.selfHeal}}
+    {{- end }}
   syncPolicy:
     applicationsSync: create-update

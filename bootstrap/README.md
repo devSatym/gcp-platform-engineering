@@ -35,7 +35,7 @@ chmod +x bootstrap/bootstrap.sh
 
 | Resource | Name | Purpose |
 |---|---|---|
-| GCS Bucket | `{PROJECT_ID}-tf-state` | Remote Terraform state |
+| GCS Bucket | `{PROJECT_ID}-tfstate` | Remote Terraform state |
 | Service Account | `sa-terraform@{PROJECT_ID}.iam.gserviceaccount.com` | Terraform execution identity |
 | IAM Binding | `scoped infrastructure IAM roles` | Terraform resource management |
 | IAM Binding | `roles/resourcemanager.projectIamAdmin` | Terraform IAM management |
@@ -59,7 +59,7 @@ If you tear down the entire project:
 
 ```bash
 # Delete state bucket (CAUTION: this destroys all Terraform state)
-gsutil rm -r gs://${PROJECT_ID}-tf-state
+gsutil rm -r gs://${PROJECT_ID}-tfstate
 
 # Delete service account
 gcloud iam service-accounts delete sa-terraform@${PROJECT_ID}.iam.gserviceaccount.com

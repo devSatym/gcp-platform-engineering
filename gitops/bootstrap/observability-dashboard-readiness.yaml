@@ -1,0 +1,103 @@
+# A successful bootstrap is not enough if Grafana merely starts while failing
+# to import its dashboards. This post-sync hook verifies the platform-owned
+# dashboards through Grafana's authenticated API and fails the root sync if
+# they are absent. It does not modify any resource.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: observability-dashboard-readiness
+  namespace: observability
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    argocd.argoproj.io/sync-wave: "10"
+  labels:
+    app.kubernetes.io/name: observability-dashboard-readiness
+    app.kubernetes.io/component: verification
+    app.kubernetes.io/part-of: platform
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 1800
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: observability-dashboard-readiness
+        app.kubernetes.io/component: verification
+        app.kubernetes.io/part-of: platform
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: verify-dashboards
+          image: curlimages/curl:8.21.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              umask 077
+              cat > /work/.netrc <<EOF
+              machine kube-prometheus-stack-grafana.observability.svc.cluster.local login ${GRAFANA_ADMIN_USER} password ${GRAFANA_ADMIN_PASSWORD}
+              EOF
+
+              readonly grafana_url="http://kube-prometheus-stack-grafana.observability.svc.cluster.local/api"
+              readonly deadline="$(( $(date +%s) + 1500 ))"
+              readonly dashboard_uids="platform-golden-signals platform-overview platform-telemetry-pipeline platform-logs-events platform-traces-service-graph"
+
+              while [ "$(date +%s)" -lt "$deadline" ]; do
+                if curl --silent --show-error --fail --connect-timeout 5 --max-time 10 "${grafana_url}/health" | grep -q '"database":"ok"'; then
+                  dashboards_ready=true
+                  for dashboard_uid in $dashboard_uids; do
+                    if ! curl --silent --show-error --fail --netrc-file /work/.netrc --output /dev/null --connect-timeout 5 --max-time 10 "${grafana_url}/dashboards/uid/${dashboard_uid}"; then
+                      dashboards_ready=false
+                      break
+                    fi
+                  done
+                  if [ "$dashboards_ready" = true ]; then
+                    echo "Grafana health and all platform dashboards are ready."
+                    exit 0
+                  fi
+                fi
+                sleep 5
+              done
+
+              echo "Timed out waiting for Grafana to provision all platform dashboards." >&2
+              exit 1
+          env:
+            - name: GRAFANA_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: kube-prometheus-stack-grafana
+                  key: admin-user
+            - name: GRAFANA_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kube-prometheus-stack-grafana
+                  key: admin-password
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          volumeMounts:
+            - name: work
+              mountPath: /work
+      volumes:
+        - name: work
+          emptyDir: {}

@@ -178,7 +178,7 @@ Every decision in this project follows these guiding principles:
 
 ## Getting Started
 
-> 📖 See [docs/onboarding/README.md](docs/onboarding/README.md) for the full onboarding guide.
+> 📖 See [the dev bootstrap guide](docs/DEV_BOOTSTRAP.md) for the current end-to-end deployment flow.
 
 **Prerequisites:**
 - GCP account with billing enabled
