@@ -47,6 +47,10 @@ spec:
     - namespace: '*'
       server: '*'
   clusterResourceWhitelist:
+    # ApplicationSets create configured workload namespaces through the
+    # CreateNamespace sync option before applying namespaced resources.
+    - group: ''
+      kind: Namespace
     - group: rbac.authorization.k8s.io
       kind: ClusterRole
     - group: rbac.authorization.k8s.io
