@@ -7,6 +7,11 @@ defaultRules:
 grafana:
   defaultDashboardsEnabled: true
   defaultDashboardsEditable: false
+  # The dev deployment has one ReadWriteOnce PVC. Recreate avoids a surge
+  # rollout that leaves a replacement pod waiting for the disk still mounted by
+  # its predecessor.
+  deploymentStrategy:
+    type: Recreate
   persistence:
     enabled: true
     size: 10Gi
