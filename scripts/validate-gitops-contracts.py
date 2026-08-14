@@ -20,6 +20,10 @@ EXPECTED_DASHBOARDS = {
     "platform-logs-events",
     "platform-traces-service-graph",
 }
+EXPECTED_DEMO_DASHBOARDS = {
+    "opentelemetry-demo-application",
+    "opentelemetry-demo-kubernetes",
+}
 
 
 def fail(message: str) -> None:
@@ -108,9 +112,50 @@ def main() -> None:
         if uid not in readiness_job:
             fail(f"dashboard readiness hook does not verify {uid}")
 
+    workload = load_yaml(GITOPS / "workloads" / "opentelemetry-demo" / "workload.yaml")[0]["workload"]
+    manifests_root = workload.get("manifests")
+    if not manifests_root:
+        fail("OpenTelemetry Demo workload has no local manifests path")
+    demo_manifests = ROOT / manifests_root / ENVIRONMENT
+    if not (demo_manifests / "kustomization.yaml").is_file():
+        fail("OpenTelemetry Demo dev local manifests are missing their kustomization")
+
+    workload_appset = (GITOPS / "bootstrap" / "applications-appset.yaml").read_text(encoding="utf-8")
+    expected_source = 'path: "{{.workload.manifests}}/{{.environment.name}}"'
+    if expected_source not in workload_appset:
+        fail("workload ApplicationSet does not render the workload-local manifests source")
+
+    demo_dashboard = load_yaml(demo_manifests / "dashboards.yaml")[0]
+    if demo_dashboard.get("metadata", {}).get("labels", {}).get("grafana_dashboard") != "1":
+        fail("OpenTelemetry Demo dashboard ConfigMap is not discoverable by Grafana")
+    dashboard_data = demo_dashboard.get("data", {})
+    demo_uids = set()
+    for name, raw_json in dashboard_data.items():
+        try:
+            dashboard = json.loads(raw_json)
+        except json.JSONDecodeError as exc:
+            fail(f"OpenTelemetry Demo dashboard {name} contains invalid JSON: {exc}")
+        demo_uids.add(dashboard.get("uid"))
+    if demo_uids != EXPECTED_DEMO_DASHBOARDS:
+        fail(f"OpenTelemetry Demo dashboard UIDs differ from the contract: {sorted(demo_uids)}")
+
+    demo_alerts = load_yaml(demo_manifests / "alerts.yaml")[0]
+    rules = demo_alerts.get("spec", {}).get("groups", [{}])[0].get("rules", [])
+    alert_names = {rule.get("alert") for rule in rules}
+    expected_alerts = {
+        "OpenTelemetryDemoCheckoutErrorRateHigh",
+        "OpenTelemetryDemoCheckoutLatencyHigh",
+        "OpenTelemetryDemoCriticalDeploymentUnavailable",
+    }
+    if alert_names != expected_alerts:
+        fail(f"OpenTelemetry Demo alert names differ from the contract: {sorted(alert_names)}")
+    if not all("traces_spanmetrics" in rule.get("expr", "") for rule in rules[:2]):
+        fail("OpenTelemetry Demo RED alerts must use observed Tempo span metrics")
+
     print(
         f"Validated {len(yaml_files)} GitOps YAML files, "
-        f"{len(dashboards)} platform dashboards, and {len(list(GITOPS.glob('*/component.yaml')))} component contracts."
+        f"{len(dashboards)} platform dashboards, {len(dashboard_data)} workload dashboards, "
+        f"and {len(list(GITOPS.glob('*/component.yaml')))} component contracts."
     )
 
 

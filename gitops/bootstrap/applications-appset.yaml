@@ -61,6 +61,12 @@ spec:
         - repoURL: "{{.environment.gitopsRepository}}"
           targetRevision: main
           ref: values
+        # Workload-owned dashboards and alert rules are rendered separately
+        # from the upstream Helm chart. Keeping this source local prevents the
+        # shared platform chart from acquiring workload-specific content.
+        - repoURL: "{{.environment.gitopsRepository}}"
+          targetRevision: main
+          path: "{{.workload.manifests}}/{{.environment.name}}"
       destination:
         server: "{{.environment.server}}"
         namespace: "{{(index .workload.destinations .environment.name).namespace}}"

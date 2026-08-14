@@ -1,9 +1,9 @@
 # OpenTelemetry Demo dev observability runbook
 
-This runbook records the source and rendered-manifest baseline for the dev
-workload. It is deliberately not an Observed Telemetry Report: that report,
-dashboard queries, alert rules, and thresholds must be produced only after the
-running dev cluster has generated telemetry.
+This runbook records the source, rendered-manifest baseline, and the completed
+Observed Telemetry Report for the dev workload. Dashboard queries, alert rules,
+and thresholds below were selected only after collecting data from the running
+cluster.
 
 ## Version and deployment baseline
 
@@ -21,6 +21,73 @@ running dev cluster has generated telemetry.
 The chart is a Demo 2.2.0 release, not a 3.x release. The load generator is
 therefore the upstream Python Locust implementation; no k6 assumptions or 3.x
 `demo.*` attribute assumptions are valid here.
+
+The version and behavior were checked against the [Demo documentation](https://opentelemetry.io/docs/demo/)
+and the matching [upstream source](https://github.com/open-telemetry/opentelemetry-demo/tree/2.2.0),
+then verified from the rendered chart and running resources.
+
+## Observed Telemetry Report (dev)
+
+### Load generation
+
+The running `load-generator` Deployment is the Demo 2.2.0 Python Locust
+implementation, not k6. It runs one replica with 50 HTTP users, a spawn rate of
+five users per second, and browser traffic disabled. The Locust API reported 50
+running users and approximately 8--10 requests/second during healthy traffic.
+It exercises browse, product detail, cart, recommendation, advertising,
+product-review, AI-assistant, and single- and multi-item checkout workflows.
+
+### Metric inventory and selected queries
+
+| Metric | Observed labels used | Purpose |
+| --- | --- | --- |
+| `traces_spanmetrics_calls_total` | `service`, `span_kind`, `span_name`, `status_code` | Request volume and the checkout error ratio. |
+| `traces_spanmetrics_latency_bucket` | `service`, `span_kind`, `le` | Checkout p95 latency. |
+| `traces_service_graph_request_total` | Tempo service-graph dimensions | Trace-derived dependency exploration; not needed on the compact dashboard. |
+| `container_cpu_usage_seconds_total` | `namespace`, `pod`, `container`, `image` | Per-pod CPU. |
+| `container_memory_working_set_bytes` | `namespace`, `pod`, `container`, `image` | Per-pod working-set memory. |
+| `kube_pod_container_status_restarts_total` | `namespace`, `pod` | Container restart changes. |
+| `kube_deployment_status_replicas_available` | `namespace`, `deployment` | Critical deployment availability. |
+
+The older `app_frontend_requests_total` metric has `exported_job`, `method`,
+`status`, and `target` labels and is useful for exploration. It did not expose
+the payment-failure HTTP 500s in this deployment, so it is intentionally not
+used for alerts or the error panel.
+
+The shared Collector's Prometheus exporter exposed application metrics, and
+Tempo supplied the reliable trace-derived RED metrics. Live discovery found
+that Tempo's configured generator was not producing data: Prometheus lacked
+its remote-write receiver and Tempo's default tenant had no processors
+enabled. The platform now enables the receiver and Tempo's generic
+`service-graphs` and `span-metrics` processors. After reconciliation, Tempo
+reported one generator client, over 12,000 remote-write samples with zero
+permanent failures, and Prometheus exposed both metric families above.
+
+### Traces and logs
+
+A failed `user_checkout_multi` trace contained these services: `load-generator`,
+`frontend-proxy`, `frontend`, `checkout`, `cart`, `product-catalog`, `currency`,
+`payment`, `quote`, and `shipping`. The error spans were
+`oteldemo.PaymentService/Charge` and
+`oteldemo.CheckoutService/PlaceOrder`; the checkout span reported that the card
+charge failed. This gives the demonstration a direct fault-to-service trace.
+
+The payment service emits structured OpenTelemetry logs containing `traceId`,
+`spanId`, severity, and service resource attributes. The shared Collector
+exports those logs to Loki. Logs are supplementary rather than dashboard or
+alert inputs; some Demo request log attributes contain intentionally fake but
+sensitive-shaped payment fields, so this runbook does not reproduce them.
+
+### Failure baseline and thresholds
+
+`paymentFailure` at 100% is the single selected failure scenario. During its
+two-minute validation window, Locust recorded failed `/api/checkout` requests;
+Tempo marked checkout and payment spans `STATUS_CODE_ERROR`. The checkout
+server error ratio rose from a healthy 0% baseline to 53%, and checkout p95
+rose from about 76 ms to about 109 ms. The alert thresholds therefore use a
+20% checkout error ratio and 100 ms p95, with a separate five-minute
+deployment-availability alert. The helper restored the exact saved flagd
+configuration after each validation run.
 
 ## Rendered dev inventory
 
@@ -110,8 +177,9 @@ Demo services and Locust
 ```
 
 The Collector applies memory limiting, Kubernetes attribute enrichment, and
-batching to all three signals. No Collector or backend change is needed before
-the first live discovery.
+batching to all three signals. It needed no workload-specific pipeline change:
+the two corrections found during live discovery were platform-owned Tempo and
+Prometheus settings described in the report above.
 
 ## Failure scenario decision
 
@@ -127,23 +195,17 @@ readiness, and email-memory scenarios. The selected demonstration is
 - `scripts/otel-demo-observability.sh` first saves the complete live flagd
   configuration with mode `0600`, then restores that exact configuration.
 
-## Live-discovery gate and sequence
+## Completed validation sequence
 
-Do not create workload dashboards, PromQL, or alert thresholds until each step
-below has completed successfully:
-
-1. Publish the reviewed repository revision to the remote `main` branch used
-   by Argo CD, then manually perform the reviewed Terraform apply for dev.
-2. Run `scripts/wait-for-gitops-convergence.sh --environment dev --timeout 1800`.
-3. Run `scripts/otel-demo-observability.sh preflight --environment dev` and
-   verify Locust logs show generated traffic.
-4. Inspect actual Prometheus metric names, types, and labels; inspect Tempo
-   traces for a normal checkout; inspect Loki logs and their trace correlation.
-5. Record those findings as the Observed Telemetry Report, then create only
-   the small workload-owned dashboards and alert rules supported by those
-   findings.
-6. Establish healthy and degraded baselines, run the payment-failure helper,
-   validate the resulting signals and trace, and restore the saved flag state.
+1. The reviewed commits are on the `main` branch consumed by Argo CD.
+2. The dev workload, platform components, and shared observability stack have
+   all been checked as `Synced` and `Healthy` after reconciliation.
+3. `scripts/otel-demo-observability.sh preflight --environment dev` verified
+   the required demo deployments and shared backend services.
+4. The report above records actual Prometheus labels, Tempo traces, structured
+   payment logs, healthy/degraded measurements, and the restored failure flag.
+5. The workload-local `manifests/dev` source now owns two four-panel Grafana
+   dashboards and three Prometheus alerts using only those observed metrics.
 
 The runtime helpers use read-only Kubernetes queries except for the
 user-selected flagd configuration write during the failure demonstration. They

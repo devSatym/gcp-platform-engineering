@@ -1,0 +1,58 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: opentelemetry-demo-observability
+  namespace: opentelemetry-demo-dev
+  labels:
+    app.kubernetes.io/name: opentelemetry-demo
+    app.kubernetes.io/component: observability
+    app.kubernetes.io/part-of: opentelemetry-demo
+spec:
+  groups:
+    - name: opentelemetry-demo.observability
+      interval: 30s
+      rules:
+        - alert: OpenTelemetryDemoCheckoutErrorRateHigh
+          expr: |
+            (
+              (sum(rate(traces_spanmetrics_calls_total{service="checkout",span_kind="SPAN_KIND_SERVER",status_code="STATUS_CODE_ERROR"}[2m])) or vector(0))
+              /
+              clamp_min(sum(rate(traces_spanmetrics_calls_total{service="checkout",span_kind="SPAN_KIND_SERVER"}[2m])), 0.001)
+            ) > 0.20
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: OpenTelemetry Demo checkout errors are elevated
+            description: Checkout server spans exceeded a 20% error ratio for two minutes. The observed healthy baseline was 0%; paymentFailure reached 53% during validation.
+            runbook_url: https://github.com/devSatym/gcp-platform-engineering/blob/main/docs/runbooks/opentelemetry-demo-observability.md
+        - alert: OpenTelemetryDemoCheckoutLatencyHigh
+          expr: |
+            histogram_quantile(
+              0.95,
+              sum by (le) (
+                rate(traces_spanmetrics_latency_bucket{service="checkout",span_kind="SPAN_KIND_SERVER"}[2m])
+              )
+            ) > 0.10
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: OpenTelemetry Demo checkout p95 latency is elevated
+            description: Checkout p95 exceeded 100 ms. The observed healthy baseline was about 76 ms and the paymentFailure window was about 109 ms.
+            runbook_url: https://github.com/devSatym/gcp-platform-engineering/blob/main/docs/runbooks/opentelemetry-demo-observability.md
+        - alert: OpenTelemetryDemoCriticalDeploymentUnavailable
+          expr: |
+            min by (deployment) (
+              kube_deployment_status_replicas_available{
+                namespace="opentelemetry-demo-dev",
+                deployment=~"frontend|frontend-proxy|checkout|payment|load-generator"
+              }
+            ) < 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: OpenTelemetry Demo critical deployment is unavailable
+            description: A critical demo deployment has had no available replica for five minutes.
+            runbook_url: https://github.com/devSatym/gcp-platform-engineering/blob/main/docs/runbooks/opentelemetry-demo-observability.md

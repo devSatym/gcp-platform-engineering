@@ -23,6 +23,9 @@ workload:
       dev: gitops/workloads/opentelemetry-demo/values/dev.yaml
       staging: gitops/workloads/opentelemetry-demo/values/staging.yaml
       prod: gitops/workloads/opentelemetry-demo/values/prod.yaml
+  # Workload-specific dashboards and alert rules stay alongside the workload
+  # contract; the ApplicationSet selects the active environment path.
+  manifests: gitops/workloads/opentelemetry-demo/manifests
   network:
     exposure: ClusterIP
     ingress:
