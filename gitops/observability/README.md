@@ -16,6 +16,11 @@ which keeps its own embedded telemetry stack as workload-owned example content.
 
 ## Telemetry paths
 
+Tempo writes its generic span and service-graph metrics to the platform
+Prometheus remote-write receiver. The receiver is intentionally enabled in the
+platform's Prometheus specification; workloads continue to use the shared OTLP
+gateway and do not configure a metrics backend.
+
 Kubernetes and workload metrics -> Prometheus -> Grafana
 Pods, nodes, and Kubernetes events -> Grafana Alloy -> Loki -> Grafana
 Instrumented workloads -> OTLP -> OTel Collector -> Tempo -> Grafana

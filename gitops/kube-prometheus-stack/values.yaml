@@ -371,6 +371,11 @@ prometheus:
           interval: 30s
   prometheusSpec:
     retention: 15d
+    # Tempo's platform-owned metrics-generator writes generic span and service
+    # graph metrics here through the Prometheus remote-write receiver. Workload
+    # dashboards can then consume those telemetry-derived metrics without a
+    # workload-specific metrics backend.
+    enableRemoteWriteReceiver: true
     serviceMonitorSelectorNilUsesHelmValues: false
     serviceMonitorSelector: {}
     podMonitorSelectorNilUsesHelmValues: false

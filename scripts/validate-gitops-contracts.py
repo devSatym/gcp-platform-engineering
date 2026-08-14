@@ -58,6 +58,13 @@ def main() -> None:
                 fail(f"component {name} has an unresolved environment Helm parameter")
 
     values = load_yaml(GITOPS / "kube-prometheus-stack" / "values.yaml")[0]
+    prometheus_spec = values.get("prometheus", {}).get("prometheusSpec", {})
+    if prometheus_spec.get("enableRemoteWriteReceiver") is not True:
+        fail(
+            "Prometheus remote-write receiver must be enabled for Tempo "
+            "metrics-generator output"
+        )
+
     grafana = values.get("grafana", {})
     provider = grafana.get("dashboardProviders", {}).get("dashboardproviders.yaml", {})
     providers = provider.get("providers", [])

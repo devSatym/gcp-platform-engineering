@@ -189,7 +189,7 @@ start_flagd_tunnel() {
   forward_pid=$!
 
   for ((attempt = 0; attempt < 200; attempt++)); do
-    if curl --silent --show-error --fail --connect-timeout 1 --max-time 2 \
+    if curl --silent --fail --connect-timeout 1 --max-time 2 \
       "http://127.0.0.1:${LOCAL_PORT}/feature/api/read" >/dev/null; then
       return 0
     fi
