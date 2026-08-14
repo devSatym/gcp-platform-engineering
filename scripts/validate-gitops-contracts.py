@@ -144,7 +144,7 @@ def main() -> None:
     alert_names = {rule.get("alert") for rule in rules}
     expected_alerts = {
         "OpenTelemetryDemoCheckoutErrorRateHigh",
-        "OpenTelemetryDemoCheckoutLatencyHigh",
+        "OpenTelemetryDemoIngressTrafficAbsent",
         "OpenTelemetryDemoCriticalDeploymentUnavailable",
     }
     if alert_names != expected_alerts:

@@ -84,10 +84,13 @@ sensitive-shaped payment fields, so this runbook does not reproduce them.
 two-minute validation window, Locust recorded failed `/api/checkout` requests;
 Tempo marked checkout and payment spans `STATUS_CODE_ERROR`. The checkout
 server error ratio rose from a healthy 0% baseline to 53%, and checkout p95
-rose from about 76 ms to about 109 ms. The alert thresholds therefore use a
-20% checkout error ratio and 100 ms p95, with a separate five-minute
-deployment-availability alert. The helper restored the exact saved flagd
-configuration after each validation run.
+rose from about 76 ms to about 109 ms. A later healthy p95 measurement was
+about 117 ms, so latency is retained as a diagnostic panel but is not a
+reliable alert boundary. The alert thresholds therefore use a 20% checkout
+error ratio, sustained ingress traffic below one request per second (against
+the observed 8--10 requests/second baseline), and deployment availability.
+The helper restored the exact saved flagd configuration after each validation
+run.
 
 ## Rendered dev inventory
 

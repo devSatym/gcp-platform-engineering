@@ -26,20 +26,19 @@ spec:
             summary: OpenTelemetry Demo checkout errors are elevated
             description: Checkout server spans exceeded a 20% error ratio for two minutes. The observed healthy baseline was 0%; paymentFailure reached 53% during validation.
             runbook_url: https://github.com/devSatym/gcp-platform-engineering/blob/main/docs/runbooks/opentelemetry-demo-observability.md
-        - alert: OpenTelemetryDemoCheckoutLatencyHigh
+        - alert: OpenTelemetryDemoIngressTrafficAbsent
           expr: |
-            histogram_quantile(
-              0.95,
-              sum by (le) (
-                rate(traces_spanmetrics_latency_bucket{service="checkout",span_kind="SPAN_KIND_SERVER"}[2m])
+            sum(
+              rate(
+                traces_spanmetrics_calls_total{service="frontend-proxy",span_kind="SPAN_KIND_SERVER"}[5m]
               )
-            ) > 0.10
-          for: 2m
+            ) < 1
+          for: 5m
           labels:
             severity: warning
           annotations:
-            summary: OpenTelemetry Demo checkout p95 latency is elevated
-            description: Checkout p95 exceeded 100 ms. The observed healthy baseline was about 76 ms and the paymentFailure window was about 109 ms.
+            summary: OpenTelemetry Demo ingress traffic is unexpectedly absent
+            description: The observed Locust baseline was approximately 8--10 ingress requests per second. Fewer than one request per second for five minutes indicates missing synthetic traffic or ingress telemetry.
             runbook_url: https://github.com/devSatym/gcp-platform-engineering/blob/main/docs/runbooks/opentelemetry-demo-observability.md
         - alert: OpenTelemetryDemoCriticalDeploymentUnavailable
           expr: |
