@@ -89,6 +89,21 @@ expected_resources = {
 if resources != expected_resources:
     raise SystemExit(f"ERROR: load-generator resources are {resources!r}; expected {expected_resources!r}")
 
+pod_spec = load_generator["spec"]["template"]["spec"]
+if pod_spec.get("nodeSelector") != {"workload": "general"}:
+    raise SystemExit(
+        "ERROR: dev load-generator must use general capacity when spot capacity is unavailable"
+    )
+
+spot_toleration = any(
+    item.get("key") == "workload"
+    and item.get("value") == "spot"
+    and item.get("effect") == "NoSchedule"
+    for item in pod_spec.get("tolerations", [])
+)
+if spot_toleration:
+    raise SystemExit("ERROR: dev load-generator must not tolerate the spot-node taint")
+
 frontend_proxy = services.get("frontend-proxy")
 if frontend_proxy is None:
     raise SystemExit("ERROR: frontend-proxy Service is required for the flagd-ui helper")

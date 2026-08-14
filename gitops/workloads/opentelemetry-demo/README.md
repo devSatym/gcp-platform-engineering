@@ -38,7 +38,7 @@ opentelemetry-demo/
 | **T1 Critical** | Frontend, FrontendProxy, Cart, Checkout, Payment, ProductCatalog | general | `business-critical (900)` | ✅ |
 | **T2 Standard** | Email, Recommendation, Currency, Shipping, Ad, Accounting, FraudDetection, Quote | general | `business-standard (500)` | ❌ |
 | **T3 Platform** | Shared OTel Collector, Prometheus, Grafana, Tempo, Loki, Flagd | general/system | `platform-critical (1000)` | ✅ (collector) |
-| **T4 Non-crit** | Load Generator | **spot** | `non-critical (100)` | ❌ |
+| **T4 Non-crit** | Load Generator | spot; general in dev when spot is unavailable | `non-critical (100)` | ❌ |
 | **Data** | Valkey, PostgreSQL, Kafka | general | `business-critical (900)` | ✅ |
 
 ## Environment Comparison

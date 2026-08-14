@@ -94,7 +94,9 @@ flowchart LR
 The source adds a root span for each Locust task, enables Python logging
 instrumentation, and exports traces, metrics, and logs via OTLP. Browser
 traffic is explicitly disabled in dev, so Playwright traffic is absent. The
-configured profile starts 50 HTTP users at 5 users per second.
+configured profile starts 50 HTTP users at 5 users per second. It uses the
+general dev pool rather than the zero-sized spot pool so a spot-capacity
+shortage cannot suppress all synthetic traffic.
 
 ## Existing telemetry pipeline
 

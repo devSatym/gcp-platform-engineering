@@ -91,6 +91,8 @@ components:
   # ─── Tier 4 — upstream Locust load generator ──────────────────────────────
   # Keep browser workers disabled: the regular HTTP workflows cover browse,
   # cart, and checkout without Playwright's substantial resource overhead.
+  # Use general capacity in dev: a zero-sized spot pool can be unavailable,
+  # which would remove the only synthetic-traffic source for observability.
   load-generator:
     enabled: true
     replicas: 1
@@ -109,6 +111,10 @@ components:
         value: "5"
       - name: LOCUST_BROWSER_TRAFFIC_ENABLED
         value: "false"
+    schedulingRules:
+      nodeSelector:
+        workload: general
+      tolerations: []
 
   # ─── Data stores ──────────────────────────────────────────────────────────
   valkey-cart:
