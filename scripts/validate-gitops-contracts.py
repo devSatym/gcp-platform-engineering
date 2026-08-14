@@ -65,6 +65,20 @@ def main() -> None:
             "metrics-generator output"
         )
 
+    tempo_values = load_yaml(GITOPS / "tempo" / "values.yaml")[0]
+    tempo_processors = (
+        tempo_values.get("tempo", {})
+        .get("overrides", {})
+        .get("defaults", {})
+        .get("metrics_generator", {})
+        .get("processors", [])
+    )
+    if set(tempo_processors) != {"service-graphs", "span-metrics"}:
+        fail(
+            "Tempo default metrics-generator processors must enable generic "
+            "service graphs and span metrics"
+        )
+
     grafana = values.get("grafana", {})
     provider = grafana.get("dashboardProviders", {}).get("dashboardproviders.yaml", {})
     providers = provider.get("providers", [])

@@ -21,6 +21,10 @@ Prometheus remote-write receiver. The receiver is intentionally enabled in the
 platform's Prometheus specification; workloads continue to use the shared OTLP
 gateway and do not configure a metrics backend.
 
+Tempo enables the `service-graphs` and `span-metrics` processors in its default
+single-tenant override. They retain Tempo's standard dimensions so platform
+configuration does not encode any workload identity.
+
 Kubernetes and workload metrics -> Prometheus -> Grafana
 Pods, nodes, and Kubernetes events -> Grafana Alloy -> Loki -> Grafana
 Instrumented workloads -> OTLP -> OTel Collector -> Tempo -> Grafana

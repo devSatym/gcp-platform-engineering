@@ -9,6 +9,15 @@ tempo:
     processor:
       service_graphs: {}
       span_metrics: {}
+  # Metrics-generator processors must be enabled per tenant. This single-tenant
+  # platform applies the generic RED and service-graph processors by default;
+  # it intentionally adds no workload-specific dimensions.
+  overrides:
+    defaults:
+      metrics_generator:
+        processors:
+          - service-graphs
+          - span-metrics
   receivers:
     otlp:
       protocols:
