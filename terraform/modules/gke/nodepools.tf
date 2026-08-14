@@ -64,4 +64,10 @@ resource "google_container_node_pool" "pools" {
   lifecycle {
     prevent_destroy = false
   }
+
+  # GKE node-pool deletion is asynchronous and can outlast Terraform's
+  # default 30-minute wait while the control plane reconciles the cluster.
+  timeouts {
+    delete = "90m"
+  }
 }

@@ -1,0 +1,67 @@
+name: Dev GitOps Verification
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - gitops/**
+      - scripts/wait-for-gitops-convergence.sh
+      - scripts/otel-demo-observability.sh
+      - .github/workflows/post-deploy-verify.yaml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: dev-gitops-verification
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify dev deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: dev
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME }}
+      GKE_CLUSTER_LOCATION: ${{ vars.GKE_CLUSTER_LOCATION }}
+      GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+      GCP_SA_EMAIL: ${{ vars.GCP_SA_EMAIL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify workflow configuration
+        run: |
+          for variable in GCP_PROJECT_ID GKE_CLUSTER_NAME GKE_CLUSTER_LOCATION GCP_WIF_PROVIDER GCP_SA_EMAIL; do
+            if [[ -z "${!variable}" ]]; then
+              echo "::error title=Missing GitHub Actions variable::Set ${variable} before enabling post-deploy verification. See docs/CI.md."
+              exit 1
+            fi
+          done
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.GCP_WIF_PROVIDER }}
+          service_account: ${{ env.GCP_SA_EMAIL }}
+          create_credentials_file: true
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_CLUSTER_LOCATION }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Wait for Argo CD convergence
+        run: scripts/wait-for-gitops-convergence.sh --environment dev --timeout 1800
+
+      - name: Run workload and observability preflight
+        run: scripts/otel-demo-observability.sh preflight --environment dev

@@ -1,90 +1,24 @@
-# =============================================================================
-# .github/workflows/ci.yaml
-#
-# CI — Pull Request Validation
-#
-# Runs on every PR to main. Purpose: catch mistakes before merge.
-# No images are built in this workflow.
-#
-# Jobs:
-#   1. lint        — YAML, Markdown, Helm, Dockerfile
-#   2. tf-validate — Terraform format and validate
-#   3. secret-scan — Gitleaks credential scanning
-# =============================================================================
-
-name: CI — Pull Request Validation
+name: CI — Platform Validation
 
 on:
   pull_request:
     branches:
       - main
-  # Allow manual triggers for debugging
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
-# Cancel in-progress runs for the same PR to avoid redundant work
+permissions:
+  contents: read
+
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # ─── Job 1: Lint ─────────────────────────────────────────────────────────────
-  lint:
-    name: Lint — YAML, Markdown, Helm
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # YAML Linting — validates gitops manifests and GitHub Actions workflows
-      - name: Install yamllint
-        run: pip install yamllint
-
-      - name: Lint YAML files
-        run: |
-          yamllint -c .yamllint.yaml gitops/ .github/workflows/
-
-      - name: Validate GitOps contracts
-        run: |
-          python3 scripts/validate-gitops-contracts.py
-          bash -n scripts/*.sh bootstrap/*.sh
-
-      # Helm values validation
-      - name: Install Helm
-        uses: azure/setup-helm@v4
-        with:
-          version: '3.14.0'
-
-      - name: Validate workload values
-        run: |
-          python3 - <<"PY"
-          import pathlib, yaml
-          files = sorted(pathlib.Path("gitops/workloads").glob("*/values/*.yaml"))
-          for path in files:
-              with path.open() as stream:
-                  yaml.safe_load(stream)
-              print(f"  ✓ {path}")
-          print(f"Validated {len(files)} workload values files")
-          PY
-
-      - name: Render-validate OpenTelemetry Demo dev
-        run: scripts/validate-opentelemetry-demo.sh
-
-      # Markdown linting — keeps docs consistent
-      - name: Lint Markdown
-        uses: DavidAnson/markdownlint-cli2-action@v16
-        with:
-          globs: |
-            **/*.md
-            !node_modules/**
-            !.terraform/**
-
-  # ─── Job 2: Terraform Validation ─────────────────────────────────────────────
-  tf-validate:
-    name: Terraform — Format & Validate
+  gitops_validate:
+    name: GitOps — Lint and Render
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -92,77 +26,110 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: '1.9.0'
+      - name: Set up Python dependencies
+        run: python3 -m pip install --disable-pip-version-check yamllint==1.37.1 PyYAML==6.0.2
 
-      - name: Terraform Format Check
-        run: terraform fmt -check -recursive terraform/
+      - name: Lint GitOps and workflow YAML
+        run: yamllint -c .yamllint.yaml gitops/ .github/workflows/
 
-      - name: Install TFLint
-        uses: terraform-linters/setup-tflint@v4
-        with:
-          tflint_version: 'v0.50.3'
-
-      - name: TFLint — modules
+      - name: Validate GitOps contracts and shell scripts
         run: |
-          for module in terraform/modules/*/; do
-            echo "--- Linting $module ---"
-            cd $module
-            tflint --init
-            tflint
-            cd -
+          python3 scripts/validate-gitops-contracts.py
+          bash -n scripts/*.sh bootstrap/*.sh
 
-      # Validate each environment (without real GCP credentials)
-      - name: Terraform Init + Validate (dev)
-        run: |
-          cd terraform/environments/dev
-          terraform init -backend=false
-          terraform validate
-
-      - name: Checkov — Security scan on Terraform
-        uses: bridgecrewio/checkov-action@v12
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
         with:
-          directory: terraform/
-          framework: terraform
-          soft_fail: true  # Warn, don't fail — allows gradual hardening
+          version: v3.14.4
 
-  # ─── Job 3: Secret Scanning ───────────────────────────────────────────────────
-  secret-scan:
-    name: Secret Scanning — Gitleaks
+      - name: Render OpenTelemetry Demo dev configuration
+        run: scripts/validate-opentelemetry-demo.sh
+
+      - name: Set up kubectl for Kustomize rendering
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.31.4
+
+      - name: Render workload-owned manifests
+        run: kubectl kustomize gitops/workloads/opentelemetry-demo/manifests/dev >/dev/null
+
+  terraform_validate:
+    name: Terraform — Format, Validate, and Lint
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Full history needed for git-based scanning
 
-      - name: Gitleaks — Detect secrets
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
+
+      - name: Check Terraform formatting
+        run: terraform fmt -check -recursive terraform/
+
+      - name: Validate Terraform environments and modules
+        run: |
+          for directory in terraform/environments/* terraform/modules/*; do
+            echo "--- Terraform validate: ${directory} ---"
+            terraform -chdir="${directory}" init -backend=false -input=false
+            terraform -chdir="${directory}" validate
+          done
+
+      - name: Set up TFLint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: v0.50.3
+
+      - name: Lint Terraform environments and modules
+        run: |
+          for directory in terraform/environments/* terraform/modules/*; do
+            echo "--- TFLint: ${directory} ---"
+            (
+              cd "${directory}"
+              tflint --init
+              tflint --format compact
+            )
+          done
+
+      - name: Scan Terraform for security misconfigurations
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: terraform/
+          framework: terraform
+          soft_fail: true
+
+  secret_scan:
+    name: Secret scanning — Gitleaks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan for leaked credentials
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Scan git history, not just working tree
-          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}  # Optional for org scans
 
-  # ─── Summary badge ────────────────────────────────────────────────────────────
-  ci-complete:
+  ci_complete:
     name: CI Complete
     runs-on: ubuntu-latest
-    needs: [lint, tf-validate, secret-scan]
+    needs:
+      - gitops_validate
+      - terraform_validate
+      - secret_scan
     if: always()
+
     steps:
-      - name: Check results
+      - name: Report validation result
         run: |
-          if [[ "${{ needs.lint.result }}" != "success" ]]; then
-            echo "❌ Lint failed" && exit 1
-          fi
-          if [[ "${{ needs.tf-validate.result }}" != "success" ]]; then
-            echo "❌ Terraform validation failed" && exit 1
-          fi
-          if [[ "${{ needs.secret-scan.result }}" != "success" ]]; then
-            echo "❌ Secret scan failed" && exit 1
-          fi
-          echo "✅ All CI checks passed"
+          test "${{ needs.gitops_validate.result }}" = "success"
+          test "${{ needs.terraform_validate.result }}" = "success"
+          test "${{ needs.secret_scan.result }}" = "success"
+          echo "Platform validation completed successfully."

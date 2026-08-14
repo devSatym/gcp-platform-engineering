@@ -19,7 +19,7 @@ Creates dedicated GCP service accounts for each platform component with least-pr
 | `sa-gke-nodes` | GKE node VMs | `logging.logWriter`, `monitoring.metricWriter`, `monitoring.viewer`, `artifactregistry.reader`, `stackdriver.resourceMetadata.writer` |
 | `sa-argocd` | ArgoCD (Phase 4) | `secretmanager.secretAccessor` |
 | `sa-external-secrets` | External Secrets Operator (Phase 4) | `secretmanager.secretAccessor`, `secretmanager.viewer` |
-| `sa-github-actions` | GitHub Actions CI (Phase 6) | `artifactregistry.writer`, `container.developer`, `iam.serviceAccountTokenCreator` |
+| `sa-github-actions` | GitHub Actions CI | `artifactregistry.writer`, `container.viewer` |
 
 ## Usage
 

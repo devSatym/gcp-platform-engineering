@@ -45,7 +45,6 @@ module "argocd_bootstrap" {
   project_id                = var.project_id
   cluster_name              = module.gke.cluster_name
   cluster_endpoint          = module.gke.cluster_endpoint
-  cluster_ca_certificate    = module.gke.cluster_ca_certificate
   cluster_location          = module.gke.cluster_location
   argocd_sa_email           = module.service_accounts.argocd_sa_email
   external_secrets_sa_email = module.service_accounts.external_secrets_sa_email
@@ -84,7 +83,6 @@ kubectl -n argocd get secret argocd-initial-admin-secret \
 | `project_id` | `string` | required | GCP project ID |
 | `cluster_name` | `string` | required | GKE cluster name |
 | `cluster_endpoint` | `string` | required | GKE API server IP |
-| `cluster_ca_certificate` | `string` | required | Base64 CA cert |
 | `cluster_location` | `string` | required | Cluster region or zone |
 | `argocd_sa_email` | `string` | required | ArgoCD GCP SA email |
 | `external_secrets_sa_email` | `string` | required | ESO GCP SA email |

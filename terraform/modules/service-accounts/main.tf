@@ -105,3 +105,12 @@ resource "google_project_iam_member" "github_actions_ar_writer" {
   role    = "roles/artifactregistry.writer"
   member  = local.sa_member.github_actions
 }
+
+# The post-deploy verification workflow only reads cluster state. This role
+# permits it to obtain credentials and inspect the Kubernetes API without
+# granting deployment or infrastructure mutation permissions.
+resource "google_project_iam_member" "github_actions_gke_viewer" {
+  project = var.project_id
+  role    = "roles/container.viewer"
+  member  = local.sa_member.github_actions
+}

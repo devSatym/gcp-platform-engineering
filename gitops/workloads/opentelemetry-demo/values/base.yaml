@@ -11,7 +11,7 @@
 #   - Per-env files (dev/staging/prod) override base.yaml
 #
 # Upstream chart: https://open-telemetry.github.io/opentelemetry-helm-charts
-# Chart version: 0.32.8 (pinned in ArgoCD ApplicationSet)
+# Chart version: 0.40.9 (pinned in the workload GitOps contract)
 #
 # IMPORTANT — Component names must use kebab-case matching the chart schema:
 #   frontend-proxy (not frontendProxy), cart (not cartService), etc.
@@ -61,8 +61,6 @@ components:
   # postgresql + product-catalog: re-enabled — nodes have ~55% CPU free
   # after removing staging/prod. product-catalog v0.40.9 requires postgresql.
   postgresql:
-    enabled: true
-  product-catalog:
     enabled: true
 
 
@@ -132,6 +130,7 @@ components:
         workload: general
 
   product-catalog:
+    enabled: true
     resources:
       requests:
         cpu: 50m

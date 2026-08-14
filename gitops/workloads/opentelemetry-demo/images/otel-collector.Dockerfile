@@ -40,7 +40,7 @@ LABEL org.opencontainers.image.title="Custom OTel Collector" \
       org.opencontainers.image.version="${BUILD_VERSION}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.revision="${VCS_REF}" \
-      org.opencontainers.image.source="https://github.com/YOUR_USERNAME/project-2"
+      org.opencontainers.image.source="https://github.com/devSatym/gcp-platform-engineering"
 
 # Security: the base image already runs as non-root (user 10001)
 # Do not switch to root here

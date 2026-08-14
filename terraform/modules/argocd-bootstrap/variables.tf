@@ -20,12 +20,6 @@ variable "cluster_endpoint" {
   sensitive   = true
 }
 
-variable "cluster_ca_certificate" {
-  description = "Base64-encoded GKE cluster CA certificate. From gke module output."
-  type        = string
-  sensitive   = true
-}
-
 variable "cluster_location" {
   description = "GKE cluster location (region or zone). From gke module output."
   type        = string
