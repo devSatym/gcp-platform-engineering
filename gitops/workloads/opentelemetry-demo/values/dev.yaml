@@ -6,9 +6,10 @@
 #
 # Key characteristics:
 #   - Single replica for all services (no HA needed in dev)
-#   - Load generator ENABLED — generates traffic for observability
+#   - Complete Locust traffic profile: 50 users, 5 users/second, HTTP-only
 #   - Shared platform observability; no duplicate embedded stack
-#   - Minimal resource requests to fit on 2× e2-standard-2 nodes
+#   - Product reviews and the local mock LLM are enabled because the upstream
+#     Locust workload exercises both routes during normal traffic.
 # =============================================================================
 
 default:
@@ -17,6 +18,37 @@ default:
       value: "deployment.environment.name=dev,service.namespace=opentelemetry-demo"
 
 components:
+  # Optional Demo 2.2.0 services required by the upstream Locust routes.
+  # The LLM image is a local mock implementation, so no GPU, API key, or
+  # external model service is required.
+  llm:
+    enabled: true
+    replicas: 1
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
+  product-reviews:
+    enabled: true
+    replicas: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    schedulingRules:
+      nodeSelector:
+        workload: general
+
   # ─── Tier 1 — single replicas in dev ─────────────────────────────────────
   frontend:
     replicas: 1
@@ -56,9 +88,27 @@ components:
       - name: FLAGD_LOG_LEVEL
         value: debug
 
-  # ─── Tier 4 — load generator (disabled) ──────────────────────────────────
+  # ─── Tier 4 — upstream Locust load generator ──────────────────────────────
+  # Keep browser workers disabled: the regular HTTP workflows cover browse,
+  # cart, and checkout without Playwright's substantial resource overhead.
   load-generator:
-    enabled: false
+    enabled: true
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        # Preserve the upstream chart's memory ceiling for the 50-user profile.
+        memory: 1500Mi
+    envOverrides:
+      - name: LOCUST_USERS
+        value: "50"
+      - name: LOCUST_SPAWN_RATE
+        value: "5"
+      - name: LOCUST_BROWSER_TRAFFIC_ENABLED
+        value: "false"
 
   # ─── Data stores ──────────────────────────────────────────────────────────
   valkey-cart:

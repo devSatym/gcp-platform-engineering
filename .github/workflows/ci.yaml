@@ -70,6 +70,9 @@ jobs:
           print(f"Validated {len(files)} workload values files")
           PY
 
+      - name: Render-validate OpenTelemetry Demo dev
+        run: scripts/validate-opentelemetry-demo.sh
+
       # Markdown linting — keeps docs consistent
       - name: Lint Markdown
         uses: DavidAnson/markdownlint-cli2-action@v16

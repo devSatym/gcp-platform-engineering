@@ -1,6 +1,6 @@
 # OpenTelemetry Demo — Platform Engineering Deployment
 
-This directory contains our production overlay on top of the upstream [OpenTelemetry Demo](https://github.com/open-telemetry/opentelemetry-demo) (Astronomy Shop) Helm chart.
+This directory contains the environment overlays for the upstream [OpenTelemetry Demo](https://github.com/open-telemetry/opentelemetry-demo) (Astronomy Shop) Helm chart.
 
 ## Philosophy: Overlay, Don't Fork
 
@@ -37,7 +37,7 @@ opentelemetry-demo/
 |---|---|---|---|---|
 | **T1 Critical** | Frontend, FrontendProxy, Cart, Checkout, Payment, ProductCatalog | general | `business-critical (900)` | ✅ |
 | **T2 Standard** | Email, Recommendation, Currency, Shipping, Ad, Accounting, FraudDetection, Quote | general | `business-standard (500)` | ❌ |
-| **T3 Platform** | OTel Collector, Prometheus, Grafana, Jaeger, Flagd | general/system | `platform-critical (1000)` | ✅ (collector) |
+| **T3 Platform** | Shared OTel Collector, Prometheus, Grafana, Tempo, Loki, Flagd | general/system | `platform-critical (1000)` | ✅ (collector) |
 | **T4 Non-crit** | Load Generator | **spot** | `non-critical (100)` | ❌ |
 | **Data** | Valkey, PostgreSQL, Kafka | general | `business-critical (900)` | ✅ |
 
@@ -48,29 +48,20 @@ opentelemetry-demo/
 | Tier 1 replicas | 1 | 2 | 3 |
 | PDB minAvailable | — | 1 | 2 |
 | Zone spread | ❌ | ❌ | ✅ |
-| Load generator | ✅ (10 users) | ✅ (50 users) | ❌ |
-| Prometheus persistence | ❌ | 20Gi | 50Gi (30d) |
-| Grafana persistence | ❌ | 5Gi | 20Gi |
-| OpenSearch | ❌ | ❌ | ❌ (Phase 8) |
+| Load generator | ✅ (50 users, 5/s, HTTP-only) | ✅ (50 users) | ❌ |
+| Metrics, traces, logs | Shared Prometheus, Tempo, Loki | Shared Prometheus, Tempo, Loki | Shared Prometheus, Tempo, Loki |
+| Optional local mock LLM + reviews | ✅ | ❌ | ❌ |
 
 ## Accessing Services (dev)
 
 ```bash
-# Storefront (frontend)
-kubectl port-forward svc/otel-demo-frontendproxy -n opentelemetry-demo-dev 8080:8080
-# Open http://localhost:8080
+# Exposes storefront, shared Grafana, and shared Prometheus locally only.
+scripts/expose-platform-uis.sh --environment dev
 
-# Grafana dashboards
-kubectl port-forward svc/otel-demo-grafana -n opentelemetry-demo-dev 3000:80
-# Open http://localhost:3000 — admin/admin
-
-# Jaeger traces
-kubectl port-forward svc/otel-demo-jaeger-query -n opentelemetry-demo-dev 16686:16686
-# Open http://localhost:16686
-
-# Prometheus metrics
-kubectl port-forward svc/otel-demo-prometheus-server -n opentelemetry-demo-dev 9090:80
-# Open http://localhost:9090
+# Storefront: http://127.0.0.1:8081
+# Grafana:    http://127.0.0.1:3000
+# Prometheus: http://127.0.0.1:9090
+# Use Grafana Explore's Tempo datasource to inspect distributed traces.
 ```
 
 ## Upgrading the Upstream Chart
@@ -78,7 +69,7 @@ kubectl port-forward svc/otel-demo-prometheus-server -n opentelemetry-demo-dev 9
 1. Check the latest version at: https://artifacthub.io/packages/helm/opentelemetry-helm/opentelemetry-demo
 2. Update `targetRevision` in `gitops/bootstrap/applications-appset.yaml`
 3. Review the upstream changelog for breaking values changes
-4. Test in dev first — ArgoCD syncs automatically after push
+4. Test in dev first — Argo CD syncs automatically after push
 5. Promote to staging → prod after validation
 
 ## Future Improvements
@@ -87,7 +78,7 @@ kubectl port-forward svc/otel-demo-prometheus-server -n opentelemetry-demo-dev 9
 |---|---|
 | Phase 6 | Mirror images to Artifact Registry; use Git SHA tags |
 | Phase 7 | Add Kyverno policies for resource limit enforcement |
-| Phase 8 | Externalize Prometheus/Grafana/Jaeger to `observability/` |
+| Phase 8 | Add workload-owned dashboards and alerts after live telemetry discovery |
 | Phase 9 | Expose frontend via GKE Gateway with TLS |
 | Phase 10 | Argo Rollouts canary for frontend deployments |
 | Phase 11 | HPA for frontend, checkout; KEDA for Kafka consumers |

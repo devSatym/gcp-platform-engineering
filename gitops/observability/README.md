@@ -61,8 +61,8 @@ notifications.
 
 Tempo is the platform trace backend rather than Jaeger. It accepts OTLP
 directly and provides Grafana-native querying alongside Prometheus and Loki,
-which is simpler for this portfolio platform. The OTel Demo's Jaeger remains
-workload-owned and is not used by this platform stack.
+which is simpler for this portfolio platform. The OpenTelemetry Demo's embedded
+Jaeger chart is disabled, so Demo traces use this shared Tempo backend.
 
 ## Operating model
 

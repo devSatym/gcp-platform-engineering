@@ -46,16 +46,18 @@ default:
 # Chart: https://open-telemetry.github.io/opentelemetry-helm-charts
 # Version: 0.40.9 (see bootstrap/applications-appset.yaml)
 #
-# Components added in v0.40.9 not used in our setup — disable explicitly:
+# Optional Demo 2.2.0 components stay disabled by default to keep non-dev
+# overlays small. The dev overlay enables the locally simulated LLM and product
+# reviews services because the upstream Locust workload calls both routes.
 components:
   # image-provider: lightweight nginx static file server — serves ALL product images
   # Without it every product card shows a blank grey box on the storefront
   image-provider:
     enabled: true
   llm:
-    enabled: false   # LLM assistant — requires GPU/API key setup
+    enabled: false   # Dev enables the local mock; it needs neither a GPU nor an API key.
   product-reviews:
-    enabled: false   # Requires PostgreSQL — disable until Phase 8 DB infra
+    enabled: false   # Dev enables it with the chart's existing PostgreSQL dependency.
   # postgresql + product-catalog: re-enabled — nodes have ~55% CPU free
   # after removing staging/prod. product-catalog v0.40.9 requires postgresql.
   postgresql:

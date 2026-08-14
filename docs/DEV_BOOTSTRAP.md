@@ -26,6 +26,11 @@ Configure the environment-owned values before the first deployment:
 
 ## Deploy
 
+Argo CD reads this repository's remote `main` branch. Publish the reviewed
+GitOps revision before provisioning so the convergence gate sees the same
+workload values that were reviewed locally. Terraform apply is deliberately a
+manual, reviewed control point.
+
 ```bash
 cd terraform/environments/dev
 terraform init -input=false -backend-config="bucket=${GCP_PROJECT_ID}-tfstate"
@@ -55,3 +60,22 @@ scripts/expose-platform-uis.sh
 
 Grafana is available at `http://127.0.0.1:3000`; fetch runtime credentials
 only when needed with `scripts/get-dashboard-credentials.sh --show-secrets`.
+
+## OpenTelemetry Demo discovery
+
+Before the first apply, render-validate the Demo's dev overlay:
+
+```bash
+scripts/validate-opentelemetry-demo.sh
+```
+
+After GitOps converges, run the read-only workload preflight:
+
+```bash
+scripts/otel-demo-observability.sh preflight --environment dev
+```
+
+Follow the [OpenTelemetry Demo dev observability runbook](runbooks/opentelemetry-demo-observability.md)
+to inspect the real metrics, traces, and logs before creating any workload
+dashboard or alert. The runbook also documents the safe, reversible
+`paymentFailure` demonstration.
