@@ -7,12 +7,6 @@ variable "project_id" {
   type        = string
 }
 
-variable "labels" {
-  description = "Labels to apply to service account resources."
-  type        = map(string)
-  default     = {}
-}
-
 variable "secret_ids" {
   description = "Secret Manager secret resource IDs that ESO may read."
   type        = set(string)

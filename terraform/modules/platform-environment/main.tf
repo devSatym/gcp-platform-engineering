@@ -1,7 +1,6 @@
 module "project" {
   source     = "../project"
   project_id = var.config.project_id
-  labels     = var.config.labels
 }
 
 module "networking" {
@@ -9,7 +8,6 @@ module "networking" {
   project_id = var.config.project_id
   region     = var.config.region
   vpc_name   = var.config.network.vpc_name
-  labels     = var.config.labels
 
   gke_subnet_cidr        = var.config.network.gke_subnet_cidr
   management_subnet_cidr = var.config.network.management_subnet_cidr
@@ -53,7 +51,6 @@ module "firewall" {
 module "service_accounts" {
   source     = "../service-accounts"
   project_id = var.config.project_id
-  labels     = var.config.labels
   secret_ids = var.config.service_accounts.secret_ids
 
   depends_on = [module.project]
@@ -93,9 +90,6 @@ module "gke" {
   maintenance_start_time           = var.config.gke.maintenance_start_time
   maintenance_end_time             = var.config.gke.maintenance_end_time
   maintenance_recurrence           = var.config.gke.maintenance_recurrence
-  bootstrap_node_machine_type      = var.config.gke.bootstrap_node_machine_type
-  bootstrap_node_disk_type         = var.config.gke.bootstrap_node_disk_type
-  bootstrap_node_disk_size_gb      = var.config.gke.bootstrap_node_disk_size_gb
   datapath_provider                = var.config.gke.datapath_provider
   enable_network_policy            = var.config.gke.enable_network_policy
   enable_advanced_datapath_metrics = var.config.gke.enable_advanced_datapath_metrics

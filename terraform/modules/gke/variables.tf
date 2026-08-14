@@ -275,28 +275,6 @@ variable "maintenance_recurrence" {
   default     = null
 }
 
-variable "bootstrap_node_machine_type" {
-  description = "Machine type used only while GKE creates the temporary default node pool."
-  type        = string
-  default     = "e2-medium"
-}
-
-variable "bootstrap_node_disk_type" {
-  description = "Disk type used only by the temporary default node pool."
-  type        = string
-  default     = "pd-standard"
-}
-
-variable "bootstrap_node_disk_size_gb" {
-  description = "Disk size used only by the temporary default node pool."
-  type        = number
-  default     = 30
-  validation {
-    condition     = var.bootstrap_node_disk_size_gb > 0
-    error_message = "bootstrap_node_disk_size_gb must be greater than zero."
-  }
-}
-
 variable "datapath_provider" {
   description = "GKE datapath provider."
   type        = string

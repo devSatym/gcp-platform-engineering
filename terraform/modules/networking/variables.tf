@@ -52,9 +52,3 @@ variable "gke_services_cidr" {
   type        = string
   default     = "10.20.0.0/20"
 }
-
-variable "labels" {
-  description = "Labels to apply to all networking resources."
-  type        = map(string)
-  default     = {}
-}

@@ -24,10 +24,9 @@ resource "google_compute_router_nat" "nat" {
   # applied later to restrict which subnets use NAT.
   source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
 
-  # Minimum ports per VM instance.
-  # Default 64. Increase if you see port exhaustion errors.
-  # 64 supports ~64 concurrent connections per pod per destination.
-  min_ports_per_vm = 64
+  # Environment configuration controls capacity; increase this value if pods
+  # experience port exhaustion.
+  min_ports_per_vm = var.min_ports_per_vm
 
   # Enable NAT logging for errors — useful for debugging connection failures.
   # Use "ALL" for full visibility but higher Cloud Logging cost.
